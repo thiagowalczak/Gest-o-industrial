@@ -1,0 +1,48 @@
+════════════════════════════════════════════════════════════
+ COMO IMPORTAR PEDIDOS DE COMPRA POR PLANILHA (Excel)
+════════════════════════════════════════════════════════════
+
+O sistema não lê mais arquivos automaticamente do computador
+(isso não funciona quando o sistema está na internet, com
+vários clientes ao mesmo tempo). Em vez disso, você faz o
+UPLOAD da planilha pela tela de Administração.
+
+PASSO A PASSO
+─────────────
+1. Abra o sistema e entre com seu usuário de administrador.
+2. Vá em "Administração" no menu lateral.
+3. Encontre o card "Compras (Pedidos)" na seção
+   "Importar Planilhas (Excel)".
+4. Clique em "Selecionar arquivo .xlsx" e escolha sua planilha.
+5. Aguarde a mensagem de confirmação com a quantidade de
+   pedidos importados.
+6. Vá até a tela "Compras" para ver os pedidos importados.
+   Você também pode editar, excluir ou cadastrar novos pedidos
+   manualmente por lá.
+
+MODELO DE PLANILHA
+──────────────────
+Use o arquivo MODELO-PLANILHA-COMPRAS.xlsx (na raiz do projeto)
+como ponto de partida. As colunas esperadas são:
+
+  - Número do Pedido
+  - Item
+  - Código do Produto
+  - Descrição do Produto
+  - Quantidade
+  - Preço Unitário
+  - Valor Total          (opcional - calculado se vazio)
+  - Data de Entrega       (formato dd/mm/aaaa)
+  - Código do Fornecedor
+  - Nome do Fornecedor
+  - Status                (ex: Aberto, Atendido, Cancelado)
+
+DICAS
+─────
+- A primeira linha da planilha deve conter os nomes das colunas
+  (cabeçalho), exatamente como na lista acima (acentos e
+  maiúsculas/minúsculas não importam).
+- Pode importar quantas vezes quiser; cada importação cria
+  novos pedidos (não substitui os existentes).
+- Se preferir, cadastre os pedidos manualmente direto na tela
+  "Compras", sem precisar de planilha.

@@ -1,0 +1,137 @@
+════════════════════════════════════════════════════════════
+  GESTÃO INDUSTRIAL — PASSO A PASSO COMPLETO
+  Para quem nunca instalou um sistema assim
+════════════════════════════════════════════════════════════
+
+Você vai precisar fazer isso apenas UMA VEZ.
+Depois é só clicar em INICIAR-SISTEMA.bat para abrir.
+
+────────────────────────────────────────────────────────────
+PASSO 1 — Instalar o Python
+────────────────────────────────────────────────────────────
+1. Acesse: https://www.python.org/downloads/
+2. Clique no botão amarelo "Download Python 3.x.x"
+3. Abra o arquivo baixado
+4. ⚠️  MUITO IMPORTANTE: marque a caixinha
+   "Add Python to PATH" antes de clicar em Install Now
+5. Clique em "Install Now"
+6. Aguarde terminar e clique em "Close"
+
+────────────────────────────────────────────────────────────
+PASSO 2 — Instalar o Node.js
+────────────────────────────────────────────────────────────
+1. Acesse: https://nodejs.org/
+2. Clique no botão "LTS" (versão recomendada)
+3. Abra o arquivo baixado (.msi)
+4. Clique em Next, Next, Next e Install
+5. Aguarde terminar e clique em Finish
+
+────────────────────────────────────────────────────────────
+PASSO 3 — Instalar o Driver do SQL Server
+────────────────────────────────────────────────────────────
+(Necessário para conectar ao banco de dados do Protheus)
+
+1. Acesse: https://aka.ms/downloadmsodbcsql
+2. Baixe e instale o "ODBC Driver 17 for SQL Server"
+3. Aceite os termos e clique em Next, Install, Finish
+
+────────────────────────────────────────────────────────────
+PASSO 4 — Instalar o Sistema
+────────────────────────────────────────────────────────────
+1. Clique DUAS VEZES no arquivo: INSTALAR-WINDOWS.bat
+2. Se aparecer aviso de segurança, clique em "Executar assim mesmo"
+3. Aguarde — vai instalar tudo automaticamente
+   (pode demorar de 5 a 15 minutos dependendo da internet)
+4. Ao terminar, o Bloco de Notas vai abrir com as configurações
+
+────────────────────────────────────────────────────────────
+PASSO 5 — Configurar a Conexão com o Protheus
+────────────────────────────────────────────────────────────
+No Bloco de Notas que abriu (arquivo backend\.env):
+
+1. Altere a linha PROTHEUS_SERVER=192.168.1.100
+   Troque 192.168.1.100 pelo IP do seu servidor Protheus
+   (veja o arquivo COMO-DESCOBRIR-IP-PROTHEUS.txt)
+
+2. Altere PROTHEUS_DATABASE=PROTHEUS
+   Se o nome do banco for diferente, troque aqui
+
+3. Altere PROTHEUS_USER=usuario_leitura
+   Coloque o usuário criado pelo TI no SQL Server
+
+4. Altere PROTHEUS_PASSWORD=senha_aqui
+   Coloque a senha do usuário do SQL Server
+
+5. Altere SECRET_KEY=troque-por-uma-chave-segura-de-32-chars
+   Escreva qualquer frase longa, por exemplo:
+   SECRET_KEY=MinhaEmpresaGestaoIndustrial2024Sistema
+
+6. Altere COMPANY_NAME=Sua Empresa Ltda
+   Coloque o nome da sua empresa
+
+7. Salve o arquivo (Ctrl + S) e feche o Bloco de Notas
+
+────────────────────────────────────────────────────────────
+PASSO 6 — Iniciar o Sistema
+────────────────────────────────────────────────────────────
+1. Clique DUAS VEZES em: INICIAR-SISTEMA.bat
+2. Vão abrir 2 janelas pretas — NÃO as feche!
+3. Após alguns segundos, o navegador vai abrir automaticamente
+4. Faça login com:
+   Email: admin@empresa.com
+   Senha: Admin@123
+
+5. ⚠️  Vá em Administração → seu usuário → Trocar Senha
+   Mude a senha padrão por uma senha sua!
+
+────────────────────────────────────────────────────────────
+PASSO 7 — Liberar acesso para outros computadores da rede
+────────────────────────────────────────────────────────────
+Para que outros funcionários acessem pelo navegador:
+
+1. No computador onde instalou, descubra o IP:
+   - Pressione Windows + R → digite cmd → Enter
+   - Digite: ipconfig
+   - Anote o "Endereço IPv4" (ex: 192.168.1.50)
+
+2. Nos outros computadores, abra o navegador e acesse:
+   http://192.168.1.50:5173
+   (troque pelo IP que você anotou)
+
+════════════════════════════════════════════════════════════
+  USANDO O SISTEMA DIA A DIA
+════════════════════════════════════════════════════════════
+
+▶ Para iniciar o sistema:
+  Clique duas vezes em INICIAR-SISTEMA.bat
+
+▶ Para fechar o sistema:
+  Feche as 2 janelas pretas que ficam abertas
+
+▶ Para cadastrar novos usuários:
+  Acesse o menu "Administração" (só aparece para admins)
+
+▶ O sistema atualiza os dados do Protheus automaticamente
+  a cada 60 segundos no painel principal
+
+════════════════════════════════════════════════════════════
+  PROBLEMAS COMUNS
+════════════════════════════════════════════════════════════
+
+❌ "Python não reconhecido como comando"
+   → Desinstale e reinstale o Python marcando "Add to PATH"
+
+❌ "Não consigo conectar ao Protheus"
+   → Verifique o IP e as credenciais no arquivo backend\.env
+   → Confirme com o TI que o usuário foi criado no SQL Server
+   → Verifique se a porta 1433 está liberada no firewall
+
+❌ "Tela em branco no navegador"
+   → Aguarde mais alguns segundos e atualize a página (F5)
+   → Verifique se as 2 janelas pretas estão abertas
+
+❌ Qualquer outro problema:
+   → Tire um print da mensagem de erro
+   → Entre em contato com o suporte
+
+════════════════════════════════════════════════════════════
