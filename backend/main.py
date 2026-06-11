@@ -8,7 +8,7 @@ import os
 
 from db.local_db import criar_tabelas, SessionLocal
 from services.auth_service import criar_admin_padrao
-from routers import auth, usuarios, dashboard, financeiro, estoque, producao
+from routers import auth, usuarios, dashboard, financeiro, estoque, producao, admin
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -46,7 +46,7 @@ app.add_middleware(
 # antes de chamar o backend. Em produção (servido pelo próprio backend),
 # o frontend chama diretamente "/api/...", então registramos as mesmas
 # rotas duas vezes: sem prefixo (compatibilidade) e com prefixo "/api".
-for roteador in (auth.router, usuarios.router, dashboard.router, financeiro.router, estoque.router, producao.router):
+for roteador in (auth.router, usuarios.router, dashboard.router, financeiro.router, estoque.router, producao.router, admin.router):
     app.include_router(roteador)
     app.include_router(roteador, prefix="/api")
 

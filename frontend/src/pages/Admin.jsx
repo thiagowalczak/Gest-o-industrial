@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
-import { Users, UserPlus, Pencil, UserX, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet } from 'lucide-react'
+import Modal from '../components/Modal'
+import { Users, UserPlus, Pencil, UserX, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
 
@@ -54,6 +55,22 @@ export default function Admin() {
   const desativar = async (id) => {
     if (!confirm('Desativar este usuário?')) return
     try { await api.delete(`/usuarios/${id}`); carregar() } catch {}
+  }
+
+  const baixarModelo = async (tipo, nomeArquivo) => {
+    try {
+      const { data } = await api.get(`/admin/modelo/${tipo}`, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = nomeArquivo
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert('Não foi possível baixar o modelo.')
+    }
   }
 
   const handleUpload = async (chave, url, e) => {
@@ -166,13 +183,19 @@ export default function Admin() {
               <option value="receber">Contas a Receber</option>
               <option value="pagar">Contas a Pagar</option>
             </select>
-            <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
-              <Upload size={14} />
-              {importando === 'financeiro' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-              <input type="file" accept=".xlsx,.xls" className="hidden"
-                onChange={e => handleUpload('financeiro', `/financeiro/importar-excel?tipo=${tipoFinanceiro}`, e)}
-                disabled={!!importando} />
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
+                <Upload size={14} />
+                {importando === 'financeiro' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
+                <input type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => handleUpload('financeiro', `/financeiro/importar-excel?tipo=${tipoFinanceiro}`, e)}
+                  disabled={!!importando} />
+              </label>
+              <button onClick={() => baixarModelo('financeiro', 'modelo-financeiro.xlsx')}
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                <Download size={14} /> Baixar modelo
+              </button>
+            </div>
             {resultados.financeiro && (
               <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
@@ -185,13 +208,19 @@ export default function Admin() {
           <div className="border border-gray-100 rounded-xl p-4 space-y-3">
             <p className="text-sm font-semibold text-gray-800">Estoque (Itens)</p>
             <p className="text-xs text-gray-500">Cria ou atualiza itens com base no código do produto</p>
-            <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
-              <Upload size={14} />
-              {importando === 'estoque' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-              <input type="file" accept=".xlsx,.xls" className="hidden"
-                onChange={e => handleUpload('estoque', '/estoque/importar-excel', e)}
-                disabled={!!importando} />
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
+                <Upload size={14} />
+                {importando === 'estoque' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
+                <input type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => handleUpload('estoque', '/estoque/importar-excel', e)}
+                  disabled={!!importando} />
+              </label>
+              <button onClick={() => baixarModelo('estoque', 'modelo-estoque.xlsx')}
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                <Download size={14} /> Baixar modelo
+              </button>
+            </div>
             {resultados.estoque && (
               <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
@@ -204,13 +233,19 @@ export default function Admin() {
           <div className="border border-gray-100 rounded-xl p-4 space-y-3">
             <p className="text-sm font-semibold text-gray-800">Produção (Ordens)</p>
             <p className="text-xs text-gray-500">Cria ordens de produção a partir da planilha</p>
-            <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
-              <Upload size={14} />
-              {importando === 'producao' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-              <input type="file" accept=".xlsx,.xls" className="hidden"
-                onChange={e => handleUpload('producao', '/producao/ordens/importar-excel', e)}
-                disabled={!!importando} />
-            </label>
+            <div className="flex flex-wrap gap-2">
+              <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
+                <Upload size={14} />
+                {importando === 'producao' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
+                <input type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => handleUpload('producao', '/producao/ordens/importar-excel', e)}
+                  disabled={!!importando} />
+              </label>
+              <button onClick={() => baixarModelo('producao', 'modelo-producao.xlsx')}
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                <Download size={14} /> Baixar modelo
+              </button>
+            </div>
             {resultados.producao && (
               <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
@@ -222,14 +257,20 @@ export default function Admin() {
           {/* Compras */}
           <div className="border border-gray-100 rounded-xl p-4 space-y-3">
             <p className="text-sm font-semibold text-gray-800">Compras (Pedidos)</p>
-            <p className="text-xs text-gray-500">Use o modelo MODELO-PLANILHA-COMPRAS.xlsx</p>
-            <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
-              <Upload size={14} />
-              {importando === 'compras' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-              <input type="file" accept=".xlsx,.xls" className="hidden"
-                onChange={e => handleUpload('compras', '/producao/compras/importar-excel', e)}
-                disabled={!!importando} />
-            </label>
+            <p className="text-xs text-gray-500">Cria pedidos de compra a partir da planilha</p>
+            <div className="flex flex-wrap gap-2">
+              <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
+                <Upload size={14} />
+                {importando === 'compras' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
+                <input type="file" accept=".xlsx,.xls" className="hidden"
+                  onChange={e => handleUpload('compras', '/producao/compras/importar-excel', e)}
+                  disabled={!!importando} />
+              </label>
+              <button onClick={() => baixarModelo('compras', 'modelo-compras.xlsx')}
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                <Download size={14} /> Baixar modelo
+              </button>
+            </div>
             {resultados.compras && (
               <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
@@ -241,15 +282,21 @@ export default function Admin() {
       </div>
 
       {/* Modal */}
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h3 className="font-bold text-gray-900">{editando ? 'Editar Usuário' : 'Novo Usuário'}</h3>
-              <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-            </div>
-            <form onSubmit={salvar} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+      <Modal
+        aberto={modal}
+        onFechar={() => setModal(false)}
+        titulo={editando ? 'Editar Usuário' : 'Novo Usuário'}
+        subtitulo={editando ? 'Atualize os dados e o setor de acesso' : 'Cadastre um novo membro da equipe'}
+        icone={editando ? Pencil : UserPlus}
+        rodape={
+          <>
+            <button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancelar</button>
+            <button type="submit" form="form-usuario" disabled={salvando} className="btn-primary">{salvando ? 'Salvando...' : 'Salvar'}</button>
+          </>
+        }
+      >
+        <form id="form-usuario" onSubmit={salvar} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="label">Nome completo</label>
                   <input className="input" value={form.nome} onChange={e => setForm(f => ({...f, nome: e.target.value}))} required />
@@ -283,15 +330,9 @@ export default function Admin() {
                   <label htmlFor="admin" className="text-sm text-gray-700 cursor-pointer">Conceder acesso de administrador</label>
                 </div>
               </div>
-              {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setModal(false)} className="btn-secondary flex-1">Cancelar</button>
-                <button type="submit" disabled={salvando} className="btn-primary flex-1">{salvando ? 'Salvando...' : 'Salvar'}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+          {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+        </form>
+      </Modal>
     </div>
   )
 }
