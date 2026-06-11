@@ -7,12 +7,17 @@ import {
   ChevronRight, ChevronsLeft, ChevronsRight
 } from 'lucide-react'
 
+// Painel central (Dashboard): restrito ao Financeiro e à Administração.
+// Demais setores (estoque, produção, compras) têm acesso apenas às
+// informações operacionais de Estoque, Produção e Compras.
+const SETORES_OPERACIONAIS = ['estoque', 'compras', 'producao', 'admin', 'diretoria']
+
 const NAV = [
-  { href: '/',           label: 'Dashboard',   icon: LayoutDashboard, setores: null },
+  { href: '/',           label: 'Dashboard',   icon: LayoutDashboard, setores: ['admin', 'financeiro'] },
   { href: '/financeiro', label: 'Financeiro',   icon: TrendingUp,      setores: ['financeiro', 'admin', 'diretoria'] },
-  { href: '/estoque',    label: 'Estoque',      icon: Package,         setores: ['estoque', 'compras', 'admin', 'diretoria'] },
-  { href: '/producao',   label: 'Produção',     icon: Factory,         setores: ['producao', 'admin', 'diretoria'] },
-  { href: '/compras',    label: 'Compras',      icon: ShoppingCart,    setores: ['compras', 'admin', 'diretoria'] },
+  { href: '/estoque',    label: 'Estoque',      icon: Package,         setores: SETORES_OPERACIONAIS },
+  { href: '/producao',   label: 'Produção',     icon: Factory,         setores: SETORES_OPERACIONAIS },
+  { href: '/compras',    label: 'Compras',      icon: ShoppingCart,    setores: SETORES_OPERACIONAIS },
   { href: '/admin',      label: 'Administração',icon: Users,           setores: ['admin'] },
 ]
 

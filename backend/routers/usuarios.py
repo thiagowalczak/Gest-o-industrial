@@ -110,6 +110,16 @@ def desativar_usuario(usuario_id: int, db: Session = Depends(get_db), admin: Usu
     return {"mensagem": "Usuário desativado"}
 
 
+@router.post("/{usuario_id}/reativar")
+def reativar_usuario(usuario_id: int, db: Session = Depends(get_db), admin: Usuario = Depends(requer_admin)):
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id, Usuario.empresa_id == admin.empresa_id).first()
+    if not usuario:
+        raise HTTPException(404, "Usuário não encontrado")
+    usuario.ativo = True
+    db.commit()
+    return {"mensagem": "Usuário reativado"}
+
+
 @router.post("/trocar-senha")
 def trocar_senha(data: SenhaUpdate, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
     from services.auth_service import verificar_senha

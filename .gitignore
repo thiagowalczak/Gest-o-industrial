@@ -15,3 +15,6 @@ frontend/dist/
 
 # Claude Code local config
 .claude/
+
+# Documentação local com informações sensíveis
+CONFIGURACOES-IMPORTANTES.md

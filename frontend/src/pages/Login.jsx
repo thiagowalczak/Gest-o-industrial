@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Factory, Eye, EyeOff } from 'lucide-react'
 
@@ -120,12 +120,6 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            Ainda não tem uma conta?{' '}
-            <Link to="/cadastro" className="text-primary-600 font-medium hover:underline">
-              Criar conta gratuita
-            </Link>
-          </p>
         </div>
       </div>
     </div>

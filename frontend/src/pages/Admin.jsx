@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
 import Modal from '../components/Modal'
-import { Users, UserPlus, Pencil, UserX, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download } from 'lucide-react'
+import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
 
@@ -53,8 +53,12 @@ export default function Admin() {
   }
 
   const desativar = async (id) => {
-    if (!confirm('Desativar este usuário?')) return
+    if (!confirm('Bloquear o acesso deste usuário?')) return
     try { await api.delete(`/usuarios/${id}`); carregar() } catch {}
+  }
+
+  const reativar = async (id) => {
+    try { await api.post(`/usuarios/${id}/reativar`); carregar() } catch {}
   }
 
   const baixarModelo = async (tipo, nomeArquivo) => {
@@ -144,16 +148,20 @@ export default function Admin() {
                     )}
                   </td>
                   <td className="py-2 px-3 text-center">
-                    {u.ativo ? <span className="badge-verde">Ativo</span> : <span className="badge-vermelho">Inativo</span>}
+                    {u.ativo ? <span className="badge-verde">Ativo</span> : <span className="badge-vermelho">Bloqueado</span>}
                   </td>
                   <td className="py-2 px-3 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button onClick={() => abrirEditar(u)} className="text-gray-400 hover:text-primary-600 transition-colors" title="Editar">
                         <Pencil size={14} />
                       </button>
-                      {u.ativo && (
-                        <button onClick={() => desativar(u.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Desativar">
+                      {u.ativo ? (
+                        <button onClick={() => desativar(u.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Bloquear acesso">
                           <UserX size={14} />
+                        </button>
+                      ) : (
+                        <button onClick={() => reativar(u.id)} className="text-gray-400 hover:text-green-600 transition-colors" title="Liberar acesso">
+                          <UserCheck size={14} />
                         </button>
                       )}
                     </div>

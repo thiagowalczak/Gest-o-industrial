@@ -29,20 +29,6 @@ export function AuthProvider({ children }) {
     return data.usuario
   }
 
-  const cadastrar = async (empresaNome, nome, email, senha) => {
-    const { data } = await api.post('/auth/cadastro', {
-      empresa_nome: empresaNome,
-      nome,
-      email,
-      senha,
-    })
-    localStorage.setItem('token', data.access_token)
-    localStorage.setItem('usuario', JSON.stringify(data.usuario))
-    api.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`
-    setUsuario(data.usuario)
-    return data.usuario
-  }
-
   const logout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('usuario')
@@ -51,7 +37,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ usuario, login, cadastrar, logout, carregando }}>
+    <AuthContext.Provider value={{ usuario, login, logout, carregando }}>
       {children}
     </AuthContext.Provider>
   )
