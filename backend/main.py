@@ -42,12 +42,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(usuarios.router)
-app.include_router(dashboard.router)
-app.include_router(financeiro.router)
-app.include_router(estoque.router)
-app.include_router(producao.router)
+# Em desenvolvimento, o Vite usa um proxy que remove o prefixo "/api"
+# antes de chamar o backend. Em produção (servido pelo próprio backend),
+# o frontend chama diretamente "/api/...", então registramos as mesmas
+# rotas duas vezes: sem prefixo (compatibilidade) e com prefixo "/api".
+for roteador in (auth.router, usuarios.router, dashboard.router, financeiro.router, estoque.router, producao.router):
+    app.include_router(roteador)
+    app.include_router(roteador, prefix="/api")
 
 
 @app.get("/health")
