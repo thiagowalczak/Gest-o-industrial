@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Factory, Eye, EyeOff } from 'lucide-react'
@@ -9,8 +9,20 @@ export default function Login() {
   const [mostrarSenha, setMostrarSenha] = useState(false)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(false)
+  const [introAtiva, setIntroAtiva] = useState(() => !sessionStorage.getItem('introVista'))
+  const [introSaindo, setIntroSaindo] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!introAtiva) return
+    const saida = setTimeout(() => setIntroSaindo(true), 1700)
+    const fim = setTimeout(() => {
+      setIntroAtiva(false)
+      sessionStorage.setItem('introVista', '1')
+    }, 2200)
+    return () => { clearTimeout(saida); clearTimeout(fim) }
+  }, [introAtiva])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -27,8 +39,24 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center p-4 relative overflow-hidden">
+      {introAtiva && (
+        <div
+          className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-primary-600 to-primary-800 ${introSaindo ? 'animate-introOut' : ''}`}
+        >
+          <div className="w-20 h-20 bg-white rounded-2xl shadow-2xl flex items-center justify-center animate-introLogo">
+            <Factory size={40} className="text-primary-500" />
+          </div>
+          <h1 className="text-white text-2xl font-bold mt-5 tracking-wide animate-introText">
+            Gestão Industrial
+          </h1>
+          <p className="text-primary-100 text-sm mt-1 animate-introText" style={{ animationDelay: '0.15s' }}>
+            Carregando seu painel...
+          </p>
+        </div>
+      )}
+
+      <div className={`w-full max-w-md ${introAtiva ? 'opacity-0' : 'animate-loginIn'}`}>
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
