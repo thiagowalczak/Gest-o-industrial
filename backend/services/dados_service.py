@@ -71,6 +71,47 @@ def listar_compras(db: Session, empresa_id: int, somente_abertos: bool = True) -
     return pedidos
 
 
+def aplicar_compra_no_estoque_e_financeiro(db: Session, empresa_id: int, pedido: PedidoCompra) -> None:
+    """
+    Reflete um pedido de compra recém-criado no estoque (entrada do produto e
+    quantidade) e no financeiro (novo título a pagar com o valor do pedido).
+    """
+    codigo = (pedido.produto or "").strip()
+    quantidade_compra = pedido.quantidade or 0
+
+    if codigo:
+        item = db.query(ItemEstoque).filter(ItemEstoque.empresa_id == empresa_id, ItemEstoque.codigo == codigo).first()
+        if item:
+            qtd_atual = item.quantidade or 0
+            custo_atual = item.custo_medio or 0
+            nova_qtd = qtd_atual + quantidade_compra
+            if nova_qtd > 0:
+                item.custo_medio = round((qtd_atual * custo_atual + quantidade_compra * (pedido.preco_unitario or 0)) / nova_qtd, 4)
+            item.quantidade = nova_qtd
+        else:
+            db.add(ItemEstoque(
+                empresa_id=empresa_id,
+                codigo=codigo,
+                descricao=pedido.descricao or codigo,
+                quantidade=quantidade_compra,
+                custo_medio=pedido.preco_unitario or 0,
+            ))
+
+    hoje = datetime.utcnow().strftime("%Y%m%d")
+    db.add(TituloFinanceiro(
+        empresa_id=empresa_id,
+        tipo="pagar",
+        titulo=pedido.numero,
+        contraparte_codigo=pedido.fornecedor,
+        contraparte_nome=pedido.nome_fornecedor,
+        emissao=hoje,
+        vencimento=pedido.data_entrega or hoje,
+        valor=pedido.valor_total or 0,
+        saldo=pedido.valor_total or 0,
+        tipo_doc="NF",
+    ))
+
+
 # ── FINANCEIRO ─────────────────────────────────────────────────────────────────
 def titulo_dict(t: TituloFinanceiro) -> dict:
     return {

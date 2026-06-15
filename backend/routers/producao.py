@@ -7,7 +7,7 @@ from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra
 from routers.auth import get_usuario_atual
 from services.dados_service import (
     listar_producao, ordem_producao_dict, SITUACOES_PRODUCAO,
-    listar_compras, pedido_compra_dict,
+    listar_compras, pedido_compra_dict, aplicar_compra_no_estoque_e_financeiro,
 )
 from services.excel_utils import ler_linhas, converter_data
 
@@ -211,6 +211,10 @@ def criar_pedido_compra(body: PedidoCompraBody, db: Session = Depends(get_db), u
     db.add(pedido)
     db.commit()
     db.refresh(pedido)
+
+    aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)
+    db.commit()
+
     return pedido_compra_dict(pedido)
 
 
@@ -256,7 +260,7 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
         valor_total = linha.get("valor_total")
         valor_total = float(valor_total) if valor_total not in (None, "") else round(quantidade * preco_unitario, 2)
 
-        db.add(PedidoCompra(
+        pedido = PedidoCompra(
             empresa_id=usuario.empresa_id,
             numero=numero,
             item=str(linha.get("item") or "01").strip().zfill(2),
@@ -269,7 +273,9 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
             fornecedor=str(linha.get("fornecedor") or "").strip(),
             nome_fornecedor=str(linha.get("nome_fornecedor") or linha.get("fornecedor") or "").strip(),
             status=str(linha.get("status") or "Aberto").strip(),
-        ))
+        )
+        db.add(pedido)
+        aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)
         criados += 1
 
     db.commit()
