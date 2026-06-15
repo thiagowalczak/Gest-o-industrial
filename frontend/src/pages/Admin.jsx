@@ -2,12 +2,17 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download, Building2, Save } from 'lucide-react'
+import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download, Building2, Save, PlusCircle } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
+const PLANOS = ['trial', 'basico', 'pro']
 
 const vazio = { nome: '', email: '', matricula: '', senha: '', setor: 'financeiro', cargo: '', admin: false }
 const empresaVazia = { nome: '', cnpj: '' }
+const novaEmpresaVazia = {
+  nome: '', cnpj: '', plano: 'trial',
+  admin_nome: '', admin_email: '', admin_matricula: '', admin_cargo: '', admin_senha: '',
+}
 
 export default function Admin() {
   const [aba, setAba] = useState('empresa')
@@ -29,6 +34,11 @@ export default function Admin() {
   const [salvandoEmpresa, setSalvandoEmpresa] = useState(false)
   const [erroEmpresa, setErroEmpresa] = useState('')
   const [msgEmpresa, setMsgEmpresa] = useState('')
+
+  const [formNovaEmpresa, setFormNovaEmpresa] = useState(novaEmpresaVazia)
+  const [salvandoNovaEmpresa, setSalvandoNovaEmpresa] = useState(false)
+  const [erroNovaEmpresa, setErroNovaEmpresa] = useState('')
+  const [msgNovaEmpresa, setMsgNovaEmpresa] = useState('')
 
   const carregar = () => {
     api.get('/usuarios/').then(r => setUsuarios(r.data)).catch(() => setUsuarios(DEMO_USERS))
@@ -84,6 +94,22 @@ export default function Admin() {
       setErroEmpresa(err.response?.data?.detail || 'Erro ao salvar dados da empresa.')
     } finally {
       setSalvandoEmpresa(false)
+    }
+  }
+
+  const salvarNovaEmpresa = async (e) => {
+    e.preventDefault()
+    setSalvandoNovaEmpresa(true)
+    setErroNovaEmpresa('')
+    setMsgNovaEmpresa('')
+    try {
+      const { data } = await api.post('/empresa/', formNovaEmpresa)
+      setMsgNovaEmpresa(`Empresa "${data.nome}" cadastrada com sucesso. Use o e-mail "${formNovaEmpresa.admin_email}" para fazer login como administrador dessa empresa.`)
+      setFormNovaEmpresa(novaEmpresaVazia)
+    } catch (err) {
+      setErroNovaEmpresa(err.response?.data?.detail || 'Erro ao cadastrar nova empresa.')
+    } finally {
+      setSalvandoNovaEmpresa(false)
     }
   }
 
@@ -154,7 +180,7 @@ export default function Admin() {
       <div className="card">
         {/* Abas */}
         <div className="flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-700 pb-3 flex-wrap">
-          {[['empresa', 'Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas']].map(([id, label]) => (
+          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas']].map(([id, label]) => (
             <button key={id} onClick={() => setAba(id)} aria-pressed={aba === id}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                 aba === id ? 'bg-primary-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -210,6 +236,69 @@ export default function Admin() {
 
             <button type="submit" className="btn-primary flex items-center gap-2" disabled={salvandoEmpresa}>
               <Save size={16} /> {salvandoEmpresa ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </form>
+        )}
+
+        {/* Aba Nova Empresa */}
+        {aba === 'nova-empresa' && (
+          <form onSubmit={salvarNovaEmpresa} className="max-w-2xl space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg"><PlusCircle size={20} className="text-primary-600" /></div>
+              <div>
+                <p className="font-bold text-gray-900 dark:text-gray-100">Cadastrar Nova Empresa</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Cria uma nova empresa e o usuário administrador inicial dela</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="label">Nome / Razão social *</label>
+                <input className="input" value={formNovaEmpresa.nome} onChange={e => setFormNovaEmpresa(f => ({...f, nome: e.target.value}))} required />
+              </div>
+              <div>
+                <label className="label">CNPJ</label>
+                <input className="input" value={formNovaEmpresa.cnpj} onChange={e => setFormNovaEmpresa(f => ({...f, cnpj: e.target.value}))} placeholder="00.000.000/0000-00" />
+              </div>
+              <div>
+                <label className="label">Plano</label>
+                <select className="input" value={formNovaEmpresa.plano} onChange={e => setFormNovaEmpresa(f => ({...f, plano: e.target.value}))}>
+                  {PLANOS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Administrador inicial</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="label">Nome completo *</label>
+                  <input className="input" value={formNovaEmpresa.admin_nome} onChange={e => setFormNovaEmpresa(f => ({...f, admin_nome: e.target.value}))} required />
+                </div>
+                <div>
+                  <label className="label">Matrícula *</label>
+                  <input className="input" value={formNovaEmpresa.admin_matricula} onChange={e => setFormNovaEmpresa(f => ({...f, admin_matricula: e.target.value}))} required />
+                </div>
+                <div>
+                  <label className="label">Cargo</label>
+                  <input className="input" value={formNovaEmpresa.admin_cargo} onChange={e => setFormNovaEmpresa(f => ({...f, admin_cargo: e.target.value}))} />
+                </div>
+                <div className="col-span-2">
+                  <label className="label">E-mail *</label>
+                  <input type="email" className="input" value={formNovaEmpresa.admin_email} onChange={e => setFormNovaEmpresa(f => ({...f, admin_email: e.target.value}))} required />
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Senha inicial *</label>
+                  <input type="password" className="input" value={formNovaEmpresa.admin_senha} onChange={e => setFormNovaEmpresa(f => ({...f, admin_senha: e.target.value}))} required />
+                </div>
+              </div>
+            </div>
+
+            {erroNovaEmpresa && <p className="text-sm text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20 px-3 py-2 rounded-lg">{erroNovaEmpresa}</p>}
+            {msgNovaEmpresa && <p className="text-sm text-green-700 bg-green-50 dark:text-green-400 dark:bg-green-900/20 px-3 py-2 rounded-lg">{msgNovaEmpresa}</p>}
+
+            <button type="submit" className="btn-primary flex items-center gap-2" disabled={salvandoNovaEmpresa}>
+              <PlusCircle size={16} /> {salvandoNovaEmpresa ? 'Cadastrando...' : 'Cadastrar empresa'}
             </button>
           </form>
         )}
