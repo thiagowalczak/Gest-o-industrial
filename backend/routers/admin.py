@@ -48,10 +48,10 @@ MODELOS = {
         "colunas": [
             "Número do Pedido", "Item", "Código do Produto", "Descrição do Produto",
             "Quantidade", "Preço Unitário", "Valor Total", "Data de Entrega",
-            "Código do Fornecedor", "Nome do Fornecedor", "Status",
+            "Código do Fornecedor", "Nome do Fornecedor",
         ],
         "exemplos": [
-            ["PC-2026-001", "01", "MAT-001", "Parafuso sextavado M8", 1000, 0.35, 350.00, "25/06/2026", "00456", "Fornecedor Exemplo Ltda", "Aberto"],
+            ["PC-2026-001", "01", "MAT-001", "Parafuso sextavado M8", 1000, 0.35, 350.00, "25/06/2026", "00456", "Fornecedor Exemplo Ltda"],
         ],
     },
 }

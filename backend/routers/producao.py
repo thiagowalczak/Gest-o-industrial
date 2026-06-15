@@ -39,7 +39,6 @@ class PedidoCompraBody(BaseModel):
     data_entrega: Optional[str] = None
     fornecedor: Optional[str] = None
     nome_fornecedor: Optional[str] = None
-    status: str = "Aberto"
 
 
 MAPA_COLUNAS_PRODUCAO = {
@@ -87,8 +86,6 @@ MAPA_COLUNAS_COMPRAS = {
     "fornecedor": "fornecedor",
     "nome do fornecedor": "nome_fornecedor",
     "razao social": "nome_fornecedor",
-    "status": "status",
-    "situacao": "status",
 }
 
 
@@ -272,7 +269,6 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
             data_entrega=converter_data(linha.get("data_entrega")),
             fornecedor=str(linha.get("fornecedor") or "").strip(),
             nome_fornecedor=str(linha.get("nome_fornecedor") or linha.get("fornecedor") or "").strip(),
-            status=str(linha.get("status") or "Aberto").strip(),
         )
         db.add(pedido)
         aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)

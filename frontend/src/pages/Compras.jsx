@@ -9,7 +9,7 @@ const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency:
 const PEDIDO_VAZIO = {
   numero: '', item: '01', produto: '', descricao: '',
   quantidade: 0, preco_unitario: 0, valor_total: 0,
-  data_entrega: '', fornecedor: '', nome_fornecedor: '', status: 'Aberto',
+  data_entrega: '', fornecedor: '', nome_fornecedor: '',
 }
 
 const dataParaInput = (v) => v && v.length === 8 ? `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}` : ''
@@ -61,7 +61,7 @@ export default function Compras() {
       numero: p.numero, item: p.item, produto: p.produto || '', descricao: p.descricao || '',
       quantidade: p.quantidade || 0, preco_unitario: p.preco_unitario || 0, valor_total: p.valor_total || 0,
       data_entrega: dataParaInput(p.data_entrega), fornecedor: p.fornecedor || '',
-      nome_fornecedor: p.nome_fornecedor || '', status: p.status || 'Aberto',
+      nome_fornecedor: p.nome_fornecedor || '',
     })
     setErro('')
     setMostrarForm(true)
@@ -121,7 +121,7 @@ export default function Compras() {
         <div className="card text-center">
           <ShoppingCart size={24} className="mx-auto text-primary-500 mb-2" />
           <p className="text-2xl font-bold text-primary-600">{pedidos.length}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Pedidos em Aberto</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Pedidos Cadastrados</p>
         </div>
         <div className="card text-center">
           <p className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-200">{fmt(total)}</p>
@@ -129,7 +129,7 @@ export default function Compras() {
         </div>
         <div className="card text-center">
           <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-            {pedidos.filter(p => String(p.data_entrega || '') < hoje).length}
+            {pedidos.filter(p => p.data_entrega && String(p.data_entrega) < hoje).length}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Atrasados</p>
         </div>
@@ -192,14 +192,6 @@ export default function Compras() {
                 <label className="label">Data de Entrega</label>
                 <input type="date" className="input" value={form.data_entrega} onChange={e => setForm(f => ({...f, data_entrega: e.target.value}))} />
               </div>
-              <div>
-                <label className="label">Status</label>
-                <select className="input" value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}>
-                  <option value="Aberto">Aberto</option>
-                  <option value="Atendido">Atendido</option>
-                  <option value="Cancelado">Cancelado</option>
-                </select>
-              </div>
             </div>
             {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
             <button type="submit" className="btn-primary" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar'}</button>
@@ -216,14 +208,14 @@ export default function Compras() {
                 <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Qtd</th>
                 <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Valor Total</th>
                 <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Entrega</th>
-                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Status</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Situação</th>
                 <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ações</th>
               </tr>
             </thead>
             <tbody>
               {carregando && pedidos.length === 0 && <TabelaSkeleton linhas={5} colunas={8} />}
               {pedidos.map((p, i) => {
-                const atrasado = String(p.data_entrega || '') < hoje && (p.status || '').toLowerCase() === 'aberto'
+                const atrasado = !!p.data_entrega && String(p.data_entrega) < hoje
                 return (
                   <tr key={i} className={`border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30 ${atrasado ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
                     <td className="py-2 px-3 font-mono text-xs">{p.numero}/{p.item}</td>
@@ -235,7 +227,7 @@ export default function Compras() {
                       {String(p.data_entrega || '').replace(/(\d{4})(\d{2})(\d{2})/, '$3/$2/$1') || '—'}
                     </td>
                     <td className="py-2 px-3 text-center">
-                      {atrasado ? <span className="badge-vermelho">Atrasado</span> : <span className="badge-amarelo">{p.status || 'Pendente'}</span>}
+                      {atrasado ? <span className="badge-vermelho">Atrasado</span> : <span className="badge-verde">No prazo</span>}
                     </td>
                     <td className="py-2 px-3">
                       <div className="flex items-center justify-center gap-2">

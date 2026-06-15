@@ -13,8 +13,6 @@ from sqlalchemy.orm import Session
 
 from db.local_db import ItemEstoque, PedidoCompra, TituloFinanceiro, OrdemProducao, AlertaEstoque
 
-STATUS_FECHADOS = {"encerrado", "encerrada", "cancelado", "cancelada", "e", "c", "concluido", "concluida", "finalizado", "finalizada"}
-
 SITUACOES_PRODUCAO = {
     "A": "Aguardando",
     "L": "Liberada",
@@ -59,16 +57,11 @@ def pedido_compra_dict(p: PedidoCompra) -> dict:
         "data_entrega": p.data_entrega,
         "fornecedor": p.fornecedor,
         "nome_fornecedor": p.nome_fornecedor,
-        "status": p.status,
     }
 
 
-def listar_compras(db: Session, empresa_id: int, somente_abertos: bool = True) -> List[PedidoCompra]:
-    q = db.query(PedidoCompra).filter(PedidoCompra.empresa_id == empresa_id)
-    pedidos = q.order_by(PedidoCompra.data_entrega).all()
-    if somente_abertos:
-        pedidos = [p for p in pedidos if (p.status or "").strip().lower() not in STATUS_FECHADOS]
-    return pedidos
+def listar_compras(db: Session, empresa_id: int) -> List[PedidoCompra]:
+    return db.query(PedidoCompra).filter(PedidoCompra.empresa_id == empresa_id).order_by(PedidoCompra.data_entrega).all()
 
 
 def aplicar_compra_no_estoque_e_financeiro(db: Session, empresa_id: int, pedido: PedidoCompra) -> None:
