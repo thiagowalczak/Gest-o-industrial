@@ -131,11 +131,11 @@ def configurar_minimo(body: ConfigEstoqueBody, db: Session = Depends(get_db), us
 
 @router.post("/importar-excel")
 async def importar_excel(file: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
-    if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "Envie um arquivo Excel (.xlsx)")
+    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
-    linhas = ler_linhas(conteudo, MAPA_COLUNAS)
+    linhas = ler_linhas(conteudo, MAPA_COLUNAS, nome_arquivo=file.filename)
 
     criados, atualizados = 0, 0
     for linha in linhas:

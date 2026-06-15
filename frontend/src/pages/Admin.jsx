@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download, Building2, Save, PlusCircle } from 'lucide-react'
+import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, FileDown, Download, Building2, Save, PlusCircle } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
 const PLANOS = ['trial', 'basico', 'pro']
@@ -26,6 +26,8 @@ export default function Admin() {
   const [resultados, setResultados] = useState({})
   const [importando, setImportando] = useState('')
   const [tipoFinanceiro, setTipoFinanceiro] = useState('receber')
+  const [tipoExportFinanceiro, setTipoExportFinanceiro] = useState('receber')
+  const [exportando, setExportando] = useState('')
   const [usuarioParaBloquear, setUsuarioParaBloquear] = useState(null)
   const [bloqueando, setBloqueando] = useState(false)
 
@@ -146,6 +148,25 @@ export default function Admin() {
     }
   }
 
+  const exportarCsv = async (chave, url, nomeArquivo) => {
+    setExportando(chave)
+    try {
+      const { data } = await api.get(url, { responseType: 'blob' })
+      const blobUrl = window.URL.createObjectURL(new Blob([data], { type: 'text/csv;charset=utf-8;' }))
+      const link = document.createElement('a')
+      link.href = blobUrl
+      link.download = nomeArquivo
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(blobUrl)
+    } catch {
+      alert('Não foi possível exportar a planilha.')
+    } finally {
+      setExportando('')
+    }
+  }
+
   const handleUpload = async (chave, url, e) => {
     const file = e.target.files[0]
     if (!file) return
@@ -180,7 +201,7 @@ export default function Admin() {
       <div className="card">
         {/* Abas */}
         <div className="flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-700 pb-3 flex-wrap">
-          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas']].map(([id, label]) => (
+          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas'], ['exportar', 'Exportar Planilhas']].map(([id, label]) => (
             <button key={id} onClick={() => setAba(id)} aria-pressed={aba === id}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                 aba === id ? 'bg-primary-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -400,8 +421,8 @@ export default function Admin() {
                 <div className="flex flex-wrap gap-2">
                   <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                     <Upload size={14} />
-                    {importando === 'financeiro' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-                    <input type="file" accept=".xlsx,.xls" className="hidden"
+                    {importando === 'financeiro' ? 'Importando...' : 'Selecionar arquivo .xlsx ou .csv'}
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden"
                       onChange={e => handleUpload('financeiro', `/financeiro/importar-excel?tipo=${tipoFinanceiro}`, e)}
                       disabled={!!importando} />
                   </label>
@@ -425,8 +446,8 @@ export default function Admin() {
                 <div className="flex flex-wrap gap-2">
                   <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                     <Upload size={14} />
-                    {importando === 'estoque' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-                    <input type="file" accept=".xlsx,.xls" className="hidden"
+                    {importando === 'estoque' ? 'Importando...' : 'Selecionar arquivo .xlsx ou .csv'}
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden"
                       onChange={e => handleUpload('estoque', '/estoque/importar-excel', e)}
                       disabled={!!importando} />
                   </label>
@@ -450,8 +471,8 @@ export default function Admin() {
                 <div className="flex flex-wrap gap-2">
                   <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                     <Upload size={14} />
-                    {importando === 'producao' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-                    <input type="file" accept=".xlsx,.xls" className="hidden"
+                    {importando === 'producao' ? 'Importando...' : 'Selecionar arquivo .xlsx ou .csv'}
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden"
                       onChange={e => handleUpload('producao', '/producao/ordens/importar-excel', e)}
                       disabled={!!importando} />
                   </label>
@@ -475,8 +496,8 @@ export default function Admin() {
                 <div className="flex flex-wrap gap-2">
                   <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                     <Upload size={14} />
-                    {importando === 'compras' ? 'Importando...' : 'Selecionar arquivo .xlsx'}
-                    <input type="file" accept=".xlsx,.xls" className="hidden"
+                    {importando === 'compras' ? 'Importando...' : 'Selecionar arquivo .xlsx ou .csv'}
+                    <input type="file" accept=".xlsx,.xls,.csv" className="hidden"
                       onChange={e => handleUpload('compras', '/producao/compras/importar-excel', e)}
                       disabled={!!importando} />
                   </label>
@@ -491,6 +512,72 @@ export default function Admin() {
                     {resultados.compras.criados} pedido(s) importado(s) de {resultados.compras.total_linhas} linha(s)
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Aba Exportar Planilhas */}
+        {aba === 'exportar' && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg"><FileDown size={20} className="text-primary-600" /></div>
+              <div>
+                <p className="font-bold text-gray-900 dark:text-gray-100">Exportar Planilhas (CSV)</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Baixe os dados atuais do financeiro, estoque, produção e compras em formato .csv</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Financeiro */}
+              <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Financeiro (Contas a Receber/Pagar)</p>
+                <select className="input" value={tipoExportFinanceiro} onChange={e => setTipoExportFinanceiro(e.target.value)}>
+                  <option value="receber">Contas a Receber</option>
+                  <option value="pagar">Contas a Pagar</option>
+                </select>
+                <button
+                  onClick={() => exportarCsv('financeiro', `/admin/exportar/financeiro?tipo=${tipoExportFinanceiro}`, `financeiro-${tipoExportFinanceiro}.csv`)}
+                  disabled={!!exportando}
+                  className="btn-secondary text-sm flex items-center gap-2">
+                  <Download size={14} /> {exportando === 'financeiro' ? 'Exportando...' : 'Exportar CSV'}
+                </button>
+              </div>
+
+              {/* Estoque */}
+              <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Estoque (Itens)</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Exporta todos os itens cadastrados no estoque</p>
+                <button
+                  onClick={() => exportarCsv('estoque', '/admin/exportar/estoque', 'estoque.csv')}
+                  disabled={!!exportando}
+                  className="btn-secondary text-sm flex items-center gap-2">
+                  <Download size={14} /> {exportando === 'estoque' ? 'Exportando...' : 'Exportar CSV'}
+                </button>
+              </div>
+
+              {/* Produção */}
+              <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Produção (Ordens)</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Exporta todas as ordens de produção cadastradas</p>
+                <button
+                  onClick={() => exportarCsv('producao', '/admin/exportar/producao', 'producao.csv')}
+                  disabled={!!exportando}
+                  className="btn-secondary text-sm flex items-center gap-2">
+                  <Download size={14} /> {exportando === 'producao' ? 'Exportando...' : 'Exportar CSV'}
+                </button>
+              </div>
+
+              {/* Compras */}
+              <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Compras (Pedidos)</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Exporta todos os pedidos de compra cadastrados</p>
+                <button
+                  onClick={() => exportarCsv('compras', '/admin/exportar/compras', 'compras.csv')}
+                  disabled={!!exportando}
+                  className="btn-secondary text-sm flex items-center gap-2">
+                  <Download size={14} /> {exportando === 'compras' ? 'Exportando...' : 'Exportar CSV'}
+                </button>
               </div>
             </div>
           </div>

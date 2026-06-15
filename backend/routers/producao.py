@@ -148,11 +148,11 @@ def remover_ordem(ordem_id: int, db: Session = Depends(get_db), usuario: Usuario
 
 @router.post("/ordens/importar-excel")
 async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
-    if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "Envie um arquivo Excel (.xlsx)")
+    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
-    linhas = ler_linhas(conteudo, MAPA_COLUNAS_PRODUCAO)
+    linhas = ler_linhas(conteudo, MAPA_COLUNAS_PRODUCAO, nome_arquivo=file.filename)
 
     criados = 0
     for linha in linhas:
@@ -241,11 +241,11 @@ def remover_pedido_compra(pedido_id: int, db: Session = Depends(get_db), usuario
 
 @router.post("/compras/importar-excel")
 async def importar_compras_excel(file: UploadFile = File(...), db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
-    if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "Envie um arquivo Excel (.xlsx)")
+    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
-    linhas = ler_linhas(conteudo, MAPA_COLUNAS_COMPRAS)
+    linhas = ler_linhas(conteudo, MAPA_COLUNAS_COMPRAS, nome_arquivo=file.filename)
 
     criados = 0
     for linha in linhas:

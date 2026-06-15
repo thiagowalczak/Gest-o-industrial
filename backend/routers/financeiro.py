@@ -130,11 +130,11 @@ async def importar_excel(
 ):
     if tipo not in ("receber", "pagar"):
         raise HTTPException(400, "O parâmetro 'tipo' deve ser 'receber' ou 'pagar'")
-    if not file.filename.endswith((".xlsx", ".xls")):
-        raise HTTPException(400, "Envie um arquivo Excel (.xlsx)")
+    if not file.filename.endswith((".xlsx", ".xls", ".csv")):
+        raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
-    linhas = ler_linhas(conteudo, MAPA_COLUNAS)
+    linhas = ler_linhas(conteudo, MAPA_COLUNAS, nome_arquivo=file.filename)
 
     criados = 0
     for linha in linhas:

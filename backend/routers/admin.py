@@ -1,16 +1,18 @@
 from __future__ import annotations
 import io
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from db.local_db import get_db, Usuario
 from routers.auth import get_usuario_atual
-from services.excel_utils import gerar_modelo_excel
+from services.excel_utils import gerar_modelo_excel, gerar_csv, formatar_data_br
+from services.dados_service import listar_estoque, listar_producao, listar_compras, listar_titulos_todos
 
 router = APIRouter(prefix="/admin", tags=["Administração"])
 
 EXCEL_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+CSV_MEDIA_TYPE = "text/csv; charset=utf-8"
 
 MODELOS = {
     "financeiro": {
@@ -69,3 +71,63 @@ def baixar_modelo(tipo: str, db: Session = Depends(get_db), usuario: Usuario = D
         media_type=EXCEL_MEDIA_TYPE,
         headers={"Content-Disposition": f'attachment; filename="{config["arquivo"]}"'},
     )
+
+
+def _csv_response(colunas: list[str], linhas: list[list], nome_arquivo: str) -> StreamingResponse:
+    conteudo = gerar_csv(colunas, linhas)
+    return StreamingResponse(
+        io.BytesIO(conteudo),
+        media_type=CSV_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+    )
+
+
+@router.get("/exportar/financeiro")
+def exportar_financeiro(
+    tipo: str = Query("receber", description="receber ou pagar"),
+    db: Session = Depends(get_db),
+    usuario: Usuario = Depends(get_usuario_atual),
+):
+    if tipo not in ("receber", "pagar"):
+        raise HTTPException(400, "O parâmetro 'tipo' deve ser 'receber' ou 'pagar'")
+
+    titulos = listar_titulos_todos(db, usuario.empresa_id, tipo)
+    colunas = ["Número do Título", "Código (Cliente/Fornecedor)", "Nome (Cliente/Fornecedor)", "Data de Emissão", "Data de Vencimento", "Valor", "Saldo"]
+    linhas = [
+        [t.titulo, t.contraparte_codigo, t.contraparte_nome, formatar_data_br(t.emissao), formatar_data_br(t.vencimento), t.valor or 0, t.saldo or 0]
+        for t in titulos
+    ]
+    return _csv_response(colunas, linhas, f"financeiro-{tipo}.csv")
+
+
+@router.get("/exportar/estoque")
+def exportar_estoque(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    itens = listar_estoque(db, usuario.empresa_id)
+    colunas = ["Código do Produto", "Descrição do Produto", "Depósito", "Quantidade", "Custo Unitário", "Unidade", "Grupo", "Estoque Mínimo", "Ponto de Reposição"]
+    linhas = [
+        [i.codigo, i.descricao, i.deposito, i.quantidade or 0, i.custo_medio or 0, i.unidade, i.grupo, i.estoque_minimo or 0, i.ponto_reposicao or 0]
+        for i in itens
+    ]
+    return _csv_response(colunas, linhas, "estoque.csv")
+
+
+@router.get("/exportar/producao")
+def exportar_producao(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    ordens = listar_producao(db, usuario.empresa_id)
+    colunas = ["Número da Ordem", "Item", "Código do Produto", "Descrição do Produto", "Quantidade Prevista", "Quantidade Produzida", "Data Início", "Data Término", "Situação"]
+    linhas = [
+        [o.numero, o.item, o.produto, o.descricao, o.quantidade_prevista or 0, o.quantidade_produzida or 0, formatar_data_br(o.data_inicio), formatar_data_br(o.data_fim), o.situacao]
+        for o in ordens
+    ]
+    return _csv_response(colunas, linhas, "producao.csv")
+
+
+@router.get("/exportar/compras")
+def exportar_compras(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    pedidos = listar_compras(db, usuario.empresa_id)
+    colunas = ["Número do Pedido", "Item", "Código do Produto", "Descrição do Produto", "Quantidade", "Preço Unitário", "Valor Total", "Data de Entrega", "Código do Fornecedor", "Nome do Fornecedor"]
+    linhas = [
+        [p.numero, p.item, p.produto, p.descricao, p.quantidade or 0, p.preco_unitario or 0, p.valor_total or 0, formatar_data_br(p.data_entrega), p.fornecedor, p.nome_fornecedor]
+        for p in pedidos
+    ]
+    return _csv_response(colunas, linhas, "compras.csv")

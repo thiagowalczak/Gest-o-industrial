@@ -122,6 +122,15 @@ def titulo_dict(t: TituloFinanceiro) -> dict:
     }
 
 
+def listar_titulos_todos(db: Session, empresa_id: int, tipo: str) -> List[TituloFinanceiro]:
+    return (
+        db.query(TituloFinanceiro)
+        .filter(TituloFinanceiro.empresa_id == empresa_id, TituloFinanceiro.tipo == tipo)
+        .order_by(TituloFinanceiro.vencimento)
+        .all()
+    )
+
+
 def listar_titulos(db: Session, empresa_id: int, tipo: str, dias: int = 60) -> List[TituloFinanceiro]:
     data_limite = (datetime.now() + timedelta(days=dias)).strftime("%Y%m%d")
     return (
