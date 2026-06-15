@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
 import Modal from '../components/Modal'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, Download } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
@@ -17,6 +18,8 @@ export default function Admin() {
   const [resultados, setResultados] = useState({})
   const [importando, setImportando] = useState('')
   const [tipoFinanceiro, setTipoFinanceiro] = useState('receber')
+  const [usuarioParaBloquear, setUsuarioParaBloquear] = useState(null)
+  const [bloqueando, setBloqueando] = useState(false)
 
   const carregar = () => {
     api.get('/usuarios/').then(r => setUsuarios(r.data)).catch(() => setUsuarios(DEMO_USERS))
@@ -52,9 +55,17 @@ export default function Admin() {
     }
   }
 
-  const desativar = async (id) => {
-    if (!confirm('Bloquear o acesso deste usuário?')) return
-    try { await api.delete(`/usuarios/${id}`); carregar() } catch {}
+  const confirmarBloqueio = async () => {
+    if (!usuarioParaBloquear) return
+    setBloqueando(true)
+    try {
+      await api.delete(`/usuarios/${usuarioParaBloquear.id}`)
+      carregar()
+    } catch {
+    } finally {
+      setBloqueando(false)
+      setUsuarioParaBloquear(null)
+    }
   }
 
   const reativar = async (id) => {
@@ -102,10 +113,10 @@ export default function Admin() {
       {/* Cabeçalho */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary-100 rounded-lg"><Users size={20} className="text-primary-600" /></div>
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg"><Users size={20} className="text-primary-600" /></div>
           <div>
-            <p className="font-bold text-gray-900">Gestão de Usuários</p>
-            <p className="text-xs text-gray-500">{ativos.length} ativos · {inativos.length} inativos</p>
+            <p className="font-bold text-gray-900 dark:text-gray-100">Gestão de Usuários</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{ativos.length} ativos · {inativos.length} inativos</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -119,27 +130,27 @@ export default function Admin() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Nome</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Matrícula</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">E-mail</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Setor</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Cargo</th>
-                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Perfil</th>
-                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Status</th>
-                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Ações</th>
+              <tr className="border-b border-gray-100 dark:border-gray-700">
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Nome</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Matrícula</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">E-mail</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Setor</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Cargo</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Perfil</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Status</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ações</th>
               </tr>
             </thead>
             <tbody>
               {usuarios.map(u => (
-                <tr key={u.id} className={`border-b border-gray-50 hover:bg-gray-50 ${!u.ativo ? 'opacity-50' : ''}`}>
-                  <td className="py-2 px-3 font-medium text-gray-800">{u.nome}</td>
+                <tr key={u.id} className={`border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30 ${!u.ativo ? 'opacity-50' : ''}`}>
+                  <td className="py-2 px-3 font-medium text-gray-800 dark:text-gray-200">{u.nome}</td>
                   <td className="py-2 px-3 font-mono text-xs">{u.matricula}</td>
-                  <td className="py-2 px-3 text-gray-500 text-xs">{u.email}</td>
+                  <td className="py-2 px-3 text-gray-500 dark:text-gray-400 text-xs">{u.email}</td>
                   <td className="py-2 px-3 capitalize">
                     <span className="badge-laranja">{u.setor}</span>
                   </td>
-                  <td className="py-2 px-3 text-xs text-gray-500">{u.cargo || '—'}</td>
+                  <td className="py-2 px-3 text-xs text-gray-500 dark:text-gray-400">{u.cargo || '—'}</td>
                   <td className="py-2 px-3 text-center">
                     {u.admin ? (
                       <span className="badge-laranja flex items-center gap-1 justify-center"><Shield size={10} /> Admin</span>
@@ -152,15 +163,15 @@ export default function Admin() {
                   </td>
                   <td className="py-2 px-3 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => abrirEditar(u)} className="text-gray-400 hover:text-primary-600 transition-colors" title="Editar">
+                      <button onClick={() => abrirEditar(u)} className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded" title="Editar" aria-label={`Editar usuário ${u.nome}`}>
                         <Pencil size={14} />
                       </button>
                       {u.ativo ? (
-                        <button onClick={() => desativar(u.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Bloquear acesso">
+                        <button onClick={() => setUsuarioParaBloquear(u)} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded" title="Bloquear acesso" aria-label={`Bloquear acesso de ${u.nome}`}>
                           <UserX size={14} />
                         </button>
                       ) : (
-                        <button onClick={() => reativar(u.id)} className="text-gray-400 hover:text-green-600 transition-colors" title="Liberar acesso">
+                        <button onClick={() => reativar(u.id)} className="text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 rounded" title="Liberar acesso" aria-label={`Liberar acesso de ${u.nome}`}>
                           <UserCheck size={14} />
                         </button>
                       )}
@@ -176,17 +187,17 @@ export default function Admin() {
       {/* Importação de planilhas */}
       <div className="card">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-primary-100 rounded-lg"><FileSpreadsheet size={20} className="text-primary-600" /></div>
+          <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg"><FileSpreadsheet size={20} className="text-primary-600" /></div>
           <div>
-            <p className="font-bold text-gray-900">Importar Planilhas (Excel)</p>
-            <p className="text-xs text-gray-500">Envie arquivos .xlsx para popular rapidamente o financeiro, estoque, produção e compras</p>
+            <p className="font-bold text-gray-900 dark:text-gray-100">Importar Planilhas (Excel)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Envie arquivos .xlsx para popular rapidamente o financeiro, estoque, produção e compras</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Financeiro */}
-          <div className="border border-gray-100 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-800">Financeiro (Contas a Receber/Pagar)</p>
+          <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Financeiro (Contas a Receber/Pagar)</p>
             <select className="input" value={tipoFinanceiro} onChange={e => setTipoFinanceiro(e.target.value)}>
               <option value="receber">Contas a Receber</option>
               <option value="pagar">Contas a Pagar</option>
@@ -200,12 +211,12 @@ export default function Admin() {
                   disabled={!!importando} />
               </label>
               <button onClick={() => baixarModelo('financeiro', 'modelo-financeiro.xlsx')}
-                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
                 <Download size={14} /> Baixar modelo
               </button>
             </div>
             {resultados.financeiro && (
-              <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
                 {resultados.financeiro.criados} título(s) importado(s) de {resultados.financeiro.total_linhas} linha(s) ({resultados.financeiro.tipo})
               </div>
@@ -213,9 +224,9 @@ export default function Admin() {
           </div>
 
           {/* Estoque */}
-          <div className="border border-gray-100 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-800">Estoque (Itens)</p>
-            <p className="text-xs text-gray-500">Cria ou atualiza itens com base no código do produto</p>
+          <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Estoque (Itens)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Cria ou atualiza itens com base no código do produto</p>
             <div className="flex flex-wrap gap-2">
               <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                 <Upload size={14} />
@@ -225,12 +236,12 @@ export default function Admin() {
                   disabled={!!importando} />
               </label>
               <button onClick={() => baixarModelo('estoque', 'modelo-estoque.xlsx')}
-                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
                 <Download size={14} /> Baixar modelo
               </button>
             </div>
             {resultados.estoque && (
-              <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
                 {resultados.estoque.criados} criado(s), {resultados.estoque.atualizados} atualizado(s) de {resultados.estoque.total_linhas} linha(s)
               </div>
@@ -238,9 +249,9 @@ export default function Admin() {
           </div>
 
           {/* Produção */}
-          <div className="border border-gray-100 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-800">Produção (Ordens)</p>
-            <p className="text-xs text-gray-500">Cria ordens de produção a partir da planilha</p>
+          <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Produção (Ordens)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Cria ordens de produção a partir da planilha</p>
             <div className="flex flex-wrap gap-2">
               <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                 <Upload size={14} />
@@ -250,12 +261,12 @@ export default function Admin() {
                   disabled={!!importando} />
               </label>
               <button onClick={() => baixarModelo('producao', 'modelo-producao.xlsx')}
-                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
                 <Download size={14} /> Baixar modelo
               </button>
             </div>
             {resultados.producao && (
-              <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
                 {resultados.producao.criados} ordem(ns) importada(s) de {resultados.producao.total_linhas} linha(s)
               </div>
@@ -263,9 +274,9 @@ export default function Admin() {
           </div>
 
           {/* Compras */}
-          <div className="border border-gray-100 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-gray-800">Compras (Pedidos)</p>
-            <p className="text-xs text-gray-500">Cria pedidos de compra a partir da planilha</p>
+          <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Compras (Pedidos)</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Cria pedidos de compra a partir da planilha</p>
             <div className="flex flex-wrap gap-2">
               <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                 <Upload size={14} />
@@ -275,12 +286,12 @@ export default function Admin() {
                   disabled={!!importando} />
               </label>
               <button onClick={() => baixarModelo('compras', 'modelo-compras.xlsx')}
-                className="text-sm font-semibold text-primary-600 hover:text-primary-700 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 transition-colors">
+                className="text-sm font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors">
                 <Download size={14} /> Baixar modelo
               </button>
             </div>
             {resultados.compras && (
-              <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
+              <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
                 <AlertCircle size={14} />
                 {resultados.compras.criados} pedido(s) importado(s) de {resultados.compras.total_linhas} linha(s)
               </div>
@@ -335,12 +346,22 @@ export default function Admin() {
                 )}
                 <div className="col-span-2 flex items-center gap-2">
                   <input type="checkbox" id="admin" checked={form.admin} onChange={e => setForm(f => ({...f, admin: e.target.checked}))} className="accent-primary-500" />
-                  <label htmlFor="admin" className="text-sm text-gray-700 cursor-pointer">Conceder acesso de administrador</label>
+                  <label htmlFor="admin" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">Conceder acesso de administrador</label>
                 </div>
               </div>
-          {erro && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
+          {erro && <p className="text-sm text-red-600 bg-red-50 dark:text-red-400 dark:bg-red-900/20 px-3 py-2 rounded-lg">{erro}</p>}
         </form>
       </Modal>
+
+      <ConfirmDialog
+        aberto={!!usuarioParaBloquear}
+        onConfirmar={confirmarBloqueio}
+        onCancelar={() => setUsuarioParaBloquear(null)}
+        titulo="Bloquear acesso do usuário"
+        descricao={`Tem certeza que deseja bloquear o acesso de "${usuarioParaBloquear?.nome}"? O usuário não conseguirá mais fazer login até ser reativado.`}
+        textoConfirmar="Bloquear"
+        carregando={bloqueando}
+      />
     </div>
   )
 }

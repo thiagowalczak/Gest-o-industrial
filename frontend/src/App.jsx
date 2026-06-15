@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -21,19 +22,21 @@ function Privado({ children, apenasAdmin, apenasPainelCentral }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Privado apenasPainelCentral><Dashboard /></Privado>} />
-          <Route path="/financeiro" element={<Privado><Financeiro /></Privado>} />
-          <Route path="/estoque" element={<Privado><Estoque /></Privado>} />
-          <Route path="/producao" element={<Privado><Producao /></Privado>} />
-          <Route path="/compras" element={<Privado><Compras /></Privado>} />
-          <Route path="/admin" element={<Privado apenasAdmin><Admin /></Privado>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Privado apenasPainelCentral><Dashboard /></Privado>} />
+            <Route path="/financeiro" element={<Privado><Financeiro /></Privado>} />
+            <Route path="/estoque" element={<Privado><Estoque /></Privado>} />
+            <Route path="/producao" element={<Privado><Producao /></Privado>} />
+            <Route path="/compras" element={<Privado><Compras /></Privado>} />
+            <Route path="/admin" element={<Privado apenasAdmin><Admin /></Privado>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   )
 }

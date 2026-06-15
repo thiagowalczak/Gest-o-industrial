@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { Factory, BarChart2, Plus, Trash2, Edit2, X } from 'lucide-react'
+import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X } from 'lucide-react'
+import ConfirmDialog from '../components/ConfirmDialog'
+import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
+import { TabelaSkeleton } from '../components/ui/skeleton'
 
 const CORES_SITUACAO = {
   'Aguardando':  'badge-amarelo',
@@ -8,6 +11,14 @@ const CORES_SITUACAO = {
   'Em Produção': 'badge-laranja',
   'Encerrada':   'badge-verde',
   'Cancelada':   'badge-vermelho',
+}
+
+const CORES_HEX_SITUACAO = {
+  'Aguardando':  '#f59e0b',
+  'Liberada':    '#3b82f6',
+  'Em Produção': '#f97316',
+  'Encerrada':   '#22c55e',
+  'Cancelada':   '#ef4444',
 }
 
 const SITUACOES = [
@@ -35,6 +46,9 @@ export default function Producao() {
   const [form, setForm] = useState(ORDEM_VAZIA)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [ordemParaRemover, setOrdemParaRemover] = useState(null)
+  const [removendo, setRemovendo] = useState(false)
+  const [carregando, setCarregando] = useState(true)
 
   const carregar = () => {
     Promise.all([
@@ -43,10 +57,19 @@ export default function Producao() {
     ]).then(([o, r]) => {
       setOrdens(o.data.ordens || [])
       setResumo(r.data)
-    })
+    }).finally(() => setCarregando(false))
   }
 
   useEffect(() => { carregar() }, [])
+
+  const distribuicaoSituacao = useMemo(() => {
+    const porSituacao = resumo?.por_situacao || {}
+    return Object.entries(porSituacao).map(([nome, valor]) => ({
+      nome,
+      valor,
+      cor: CORES_HEX_SITUACAO[nome] || '#9ca3af',
+    }))
+  }, [resumo])
 
   const abrirNova = () => {
     setEditando(null)
@@ -86,12 +109,17 @@ export default function Producao() {
     }
   }
 
-  const remover = async (o) => {
-    if (!confirm(`Remover a ordem ${o.numero}/${o.item}?`)) return
+  const confirmarRemocao = async () => {
+    if (!ordemParaRemover) return
+    setRemovendo(true)
     try {
-      await api.delete(`/producao/ordens/${o.id}`)
+      await api.delete(`/producao/ordens/${ordemParaRemover.id}`)
       carregar()
-    } catch {}
+    } catch {
+    } finally {
+      setRemovendo(false)
+      setOrdemParaRemover(null)
+    }
   }
 
   return (
@@ -101,33 +129,43 @@ export default function Producao() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="card text-center">
             <p className="text-2xl font-bold text-purple-600">{resumo.total_ordens}</p>
-            <p className="text-xs text-gray-500">Ordens em Aberto</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Ordens em Aberto</p>
           </div>
           <div className="card text-center">
-            <p className="text-2xl font-bold text-primary-600">{Number(resumo.total_previsto).toLocaleString('pt-BR')}</p>
-            <p className="text-xs text-gray-500">Quantidade Prevista</p>
+            <p className="text-lg sm:text-2xl font-bold text-primary-600">{Number(resumo.total_previsto).toLocaleString('pt-BR')}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Quantidade Prevista</p>
           </div>
           <div className="card text-center">
-            <p className="text-2xl font-bold text-green-600">{Number(resumo.total_produzido).toLocaleString('pt-BR')}</p>
-            <p className="text-xs text-gray-500">Já Produzido</p>
+            <p className="text-lg sm:text-2xl font-bold text-green-600">{Number(resumo.total_produzido).toLocaleString('pt-BR')}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Já Produzido</p>
           </div>
           <div className="card text-center">
             <div className="flex items-center justify-center gap-1 mb-1">
               <BarChart2 size={16} className="text-indigo-500" />
               <p className="text-2xl font-bold text-indigo-600">{resumo.eficiencia}%</p>
             </div>
-            <p className="text-xs text-gray-500">Eficiência Geral</p>
-            <div className="mt-2 bg-gray-100 rounded-full h-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Eficiência Geral</p>
+            <div className="mt-2 bg-gray-100 dark:bg-gray-700 rounded-full h-2">
               <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${resumo.eficiencia}%` }} />
             </div>
           </div>
         </div>
       )}
 
+      {/* Distribuição por situação */}
+      {resumo && (
+        <div className="card">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-2">
+            <PieChart size={18} className="text-primary-500" /> Ordens por Situação
+          </h3>
+          <DistribuicaoPizza dados={distribuicaoSituacao} formatador={(v) => Number(v).toLocaleString('pt-BR')} />
+        </div>
+      )}
+
       {/* Ordens */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <Factory size={18} className="text-primary-500" /> Ordens de Produção
           </h3>
           <button onClick={abrirNova} className="btn-primary text-sm flex items-center gap-2">
@@ -136,10 +174,10 @@ export default function Producao() {
         </div>
 
         {mostrarForm && (
-          <form onSubmit={salvar} className="bg-gray-50 border border-gray-100 rounded-xl p-4 mb-4 space-y-4">
+          <form onSubmit={salvar} className="bg-gray-50 border border-gray-100 dark:bg-gray-900/40 dark:border-gray-700 rounded-xl p-4 mb-4 space-y-4">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-gray-700">{editando ? `Editar ordem ${editando.numero}/${editando.item}` : 'Nova ordem de produção'}</p>
-              <button type="button" onClick={() => setMostrarForm(false)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{editando ? `Editar ordem ${editando.numero}/${editando.item}` : 'Nova ordem de produção'}</p>
+              <button type="button" onClick={() => setMostrarForm(false)} aria-label="Fechar formulário" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"><X size={16} /></button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
@@ -189,25 +227,26 @@ export default function Producao() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100">
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Ordem</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Produto</th>
-                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Previsto</th>
-                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500">Produzido</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Prazo</th>
-                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Status</th>
-                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500">Progresso</th>
-                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500">Ações</th>
+              <tr className="border-b border-gray-100 dark:border-gray-700">
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ordem</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Produto</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Previsto</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Produzido</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Prazo</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Status</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Progresso</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ações</th>
               </tr>
             </thead>
             <tbody>
+              {carregando && ordens.length === 0 && <TabelaSkeleton linhas={5} colunas={8} />}
               {ordens.map((o, i) => (
                 <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
                   <td className="py-2 px-3 font-mono text-xs">{o.numero}/{o.item}</td>
-                  <td className="py-2 px-3 text-gray-700 text-xs truncate max-w-[200px]">{o.descricao || o.produto}</td>
+                  <td className="py-2 px-3 text-gray-700 dark:text-gray-300 text-xs truncate max-w-[200px]">{o.descricao || o.produto}</td>
                   <td className="py-2 px-3 text-right">{Number(o.quantidade_prevista || 0).toLocaleString('pt-BR')}</td>
-                  <td className="py-2 px-3 text-right text-green-600 font-medium">{Number(o.quantidade_produzida || 0).toLocaleString('pt-BR')}</td>
-                  <td className="py-2 px-3 font-mono text-xs text-gray-500">
+                  <td className="py-2 px-3 text-right text-green-600 dark:text-green-400 font-medium">{Number(o.quantidade_produzida || 0).toLocaleString('pt-BR')}</td>
+                  <td className="py-2 px-3 font-mono text-xs text-gray-500 dark:text-gray-400">
                     {String(o.data_fim || '').replace(/(\d{4})(\d{2})(\d{2})/, '$3/$2/$1') || '—'}
                   </td>
                   <td className="py-2 px-3 text-center">
@@ -216,24 +255,34 @@ export default function Producao() {
                     </span>
                   </td>
                   <td className="py-2 px-3 w-28">
-                    <div className="bg-gray-100 rounded-full h-1.5">
+                    <div className="bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
                       <div className="bg-primary-500 h-1.5 rounded-full" style={{ width: `${o.percentual_concluido || 0}%` }} />
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">{o.percentual_concluido || 0}%</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{o.percentual_concluido || 0}%</p>
                   </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => abrirEdicao(o)} className="text-gray-400 hover:text-primary-600"><Edit2 size={14} /></button>
-                      <button onClick={() => remover(o)} className="text-gray-400 hover:text-red-600"><Trash2 size={14} /></button>
+                      <button onClick={() => abrirEdicao(o)} aria-label={`Editar ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"><Edit2 size={14} /></button>
+                      <button onClick={() => setOrdemParaRemover(o)} aria-label={`Remover ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {ordens.length === 0 && <p className="text-center text-gray-400 py-8">Nenhuma ordem em aberto. Cadastre uma nova ordem ou importe pela Administração.</p>}
+          {!carregando && ordens.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 py-8">Nenhuma ordem em aberto. Cadastre uma nova ordem ou importe pela Administração.</p>}
         </div>
       </div>
+
+      <ConfirmDialog
+        aberto={!!ordemParaRemover}
+        onConfirmar={confirmarRemocao}
+        onCancelar={() => setOrdemParaRemover(null)}
+        titulo="Remover ordem de produção"
+        descricao={`Tem certeza que deseja remover a ordem ${ordemParaRemover?.numero}/${ordemParaRemover?.item}? Esta ação não pode ser desfeita.`}
+        textoConfirmar="Remover"
+        carregando={removendo}
+      />
     </div>
   )
 }
