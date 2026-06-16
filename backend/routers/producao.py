@@ -208,10 +208,6 @@ def criar_pedido_compra(body: PedidoCompraBody, db: Session = Depends(get_db), u
     db.add(pedido)
     db.commit()
     db.refresh(pedido)
-
-    aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)
-    db.commit()
-
     return pedido_compra_dict(pedido)
 
 
@@ -237,6 +233,20 @@ def remover_pedido_compra(pedido_id: int, db: Session = Depends(get_db), usuario
     db.delete(pedido)
     db.commit()
     return {"mensagem": "Pedido removido"}
+
+
+@router.post("/compras/{pedido_id}/entregar")
+def confirmar_entrega(pedido_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    pedido = db.query(PedidoCompra).filter(PedidoCompra.id == pedido_id, PedidoCompra.empresa_id == usuario.empresa_id).first()
+    if not pedido:
+        raise HTTPException(404, "Pedido não encontrado")
+    if (pedido.status or "") == "Pedido entregue":
+        raise HTTPException(400, "Pedido já foi marcado como entregue")
+    pedido.status = "Pedido entregue"
+    db.commit()
+    aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)
+    db.commit()
+    return pedido_compra_dict(pedido)
 
 
 @router.post("/compras/importar-excel")
@@ -271,7 +281,6 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
             nome_fornecedor=str(linha.get("nome_fornecedor") or linha.get("fornecedor") or "").strip(),
         )
         db.add(pedido)
-        aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)
         criados += 1
 
     db.commit()

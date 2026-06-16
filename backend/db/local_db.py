@@ -114,6 +114,7 @@ class PedidoCompra(Base):
     data_entrega = Column(String(8))  # AAAAMMDD
     fornecedor = Column(String(30))
     nome_fornecedor = Column(String(150))
+    status = Column(String(20), default="Pedido feito")
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 

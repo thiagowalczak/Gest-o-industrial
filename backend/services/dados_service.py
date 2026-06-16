@@ -57,6 +57,7 @@ def pedido_compra_dict(p: PedidoCompra) -> dict:
         "data_entrega": p.data_entrega,
         "fornecedor": p.fornecedor,
         "nome_fornecedor": p.nome_fornecedor,
+        "status": p.status or "Pedido feito",
     }
 
 

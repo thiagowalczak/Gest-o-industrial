@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
-import { ShoppingCart, RefreshCw, Plus, Trash2, Edit2, X } from 'lucide-react'
+import { ShoppingCart, RefreshCw, Plus, Trash2, Edit2, X, PackageCheck } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { TabelaSkeleton } from '../components/ui/skeleton'
 
@@ -26,6 +26,8 @@ export default function Compras() {
   const [erro, setErro] = useState('')
   const [pedidoParaRemover, setPedidoParaRemover] = useState(null)
   const [removendo, setRemovendo] = useState(false)
+  const [pedidoParaEntregar, setPedidoParaEntregar] = useState(null)
+  const [entregando, setEntregando] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const hoje = new Date().toISOString().slice(0, 10).replace(/-/g, '')
 
@@ -33,7 +35,7 @@ export default function Compras() {
     Promise.all([
       api.get('/producao/compras')
         .then(r => { setPedidos(r.data.pedidos || []); setAtualizado(new Date()) })
-        .catch(() => setPedidos(DEMO)),
+        .catch(() => setPedidos([])),
       api.get('/producao/compras/status')
         .then(r => setStatus(r.data))
         .catch(() => setStatus(null)),
@@ -42,11 +44,14 @@ export default function Compras() {
 
   useEffect(() => {
     carregar()
-    const iv = setInterval(carregar, 15000) // atualiza a cada 15 segundos
+    const iv = setInterval(carregar, 15000)
     return () => clearInterval(iv)
   }, [])
 
   const total = pedidos.reduce((s, p) => s + Number(p.valor_total || 0), 0)
+  const aguardando = pedidos.filter(p => p.status !== 'Pedido entregue')
+  const entregues = pedidos.filter(p => p.status === 'Pedido entregue')
+  const atrasados = pedidos.filter(p => p.data_entrega && String(p.data_entrega) < hoje && p.status !== 'Pedido entregue')
 
   const abrirNovo = () => {
     setEditando(null)
@@ -100,9 +105,22 @@ export default function Compras() {
     }
   }
 
+  const confirmarEntrega = async () => {
+    if (!pedidoParaEntregar) return
+    setEntregando(true)
+    try {
+      await api.post(`/producao/compras/${pedidoParaEntregar.id}/entregar`)
+      carregar()
+    } catch {
+    } finally {
+      setEntregando(false)
+      setPedidoParaEntregar(null)
+    }
+  }
+
   return (
     <div className="space-y-5">
-      {/* Status */}
+      {/* Barra de status */}
       <div className="card flex items-center justify-between flex-wrap gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Pedidos de Compra</p>
@@ -117,20 +135,24 @@ export default function Compras() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card text-center">
           <ShoppingCart size={24} className="mx-auto text-primary-500 mb-2" />
-          <p className="text-2xl font-bold text-primary-600">{pedidos.length}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Pedidos Cadastrados</p>
+          <p className="text-2xl font-bold text-primary-600">{aguardando.length}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Aguardando Entrega</p>
+        </div>
+        <div className="card text-center">
+          <PackageCheck size={24} className="mx-auto text-green-500 mb-2" />
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">{entregues.length}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Entregues</p>
         </div>
         <div className="card text-center">
           <p className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-200">{fmt(total)}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Valor Total</p>
         </div>
         <div className="card text-center">
-          <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-            {pedidos.filter(p => p.data_entrega && String(p.data_entrega) < hoje).length}
-          </p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400">{atrasados.length}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Atrasados</p>
         </div>
       </div>
@@ -215,7 +237,8 @@ export default function Compras() {
             <tbody>
               {carregando && pedidos.length === 0 && <TabelaSkeleton linhas={5} colunas={8} />}
               {pedidos.map((p, i) => {
-                const atrasado = !!p.data_entrega && String(p.data_entrega) < hoje
+                const entregue = p.status === 'Pedido entregue'
+                const atrasado = !entregue && !!p.data_entrega && String(p.data_entrega) < hoje
                 return (
                   <tr key={i} className={`border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30 ${atrasado ? 'bg-red-50 dark:bg-red-900/20' : ''}`}>
                     <td className="py-2 px-3 font-mono text-xs">{p.numero}/{p.item}</td>
@@ -227,10 +250,24 @@ export default function Compras() {
                       {String(p.data_entrega || '').replace(/(\d{4})(\d{2})(\d{2})/, '$3/$2/$1') || '—'}
                     </td>
                     <td className="py-2 px-3 text-center">
-                      {atrasado ? <span className="badge-vermelho">Atrasado</span> : <span className="badge-verde">No prazo</span>}
+                      {entregue
+                        ? <span className="badge-verde">Entregue</span>
+                        : atrasado
+                          ? <span className="badge-vermelho">Atrasado</span>
+                          : <span className="badge-amarelo">Pedido feito</span>
+                      }
                     </td>
                     <td className="py-2 px-3">
                       <div className="flex items-center justify-center gap-2">
+                        {!entregue && (
+                          <button
+                            onClick={() => setPedidoParaEntregar(p)}
+                            aria-label={`Confirmar entrega do pedido ${p.numero}/${p.item}`}
+                            title="Confirmar entrega"
+                            className="text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 rounded">
+                            <PackageCheck size={14} />
+                          </button>
+                        )}
                         <button onClick={() => abrirEdicao(p)} aria-label={`Editar pedido ${p.numero}/${p.item}`} className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"><Edit2 size={14} /></button>
                         <button onClick={() => setPedidoParaRemover(p)} aria-label={`Remover pedido ${p.numero}/${p.item}`} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded"><Trash2 size={14} /></button>
                       </div>
@@ -245,6 +282,16 @@ export default function Compras() {
       </div>
 
       <ConfirmDialog
+        aberto={!!pedidoParaEntregar}
+        onConfirmar={confirmarEntrega}
+        onCancelar={() => setPedidoParaEntregar(null)}
+        titulo="Confirmar entrega do pedido"
+        descricao={`Confirmar que o pedido ${pedidoParaEntregar?.numero}/${pedidoParaEntregar?.item} foi entregue? Isso vai atualizar o estoque e lançar a conta a pagar automaticamente.`}
+        textoConfirmar="Confirmar entrega"
+        carregando={entregando}
+      />
+
+      <ConfirmDialog
         aberto={!!pedidoParaRemover}
         onConfirmar={confirmarRemocao}
         onCancelar={() => setPedidoParaRemover(null)}
@@ -256,5 +303,3 @@ export default function Compras() {
     </div>
   )
 }
-
-const DEMO = []
