@@ -7,7 +7,7 @@ from datetime import datetime
 from db.local_db import get_db, Usuario, TituloFinanceiro
 from routers.auth import get_usuario_atual
 from services.dados_service import listar_titulos, titulo_dict
-from services.excel_utils import ler_linhas, converter_data
+from services.excel_utils import ler_linhas, converter_data, is_fluxo_caixa, ler_fluxo_caixa
 
 router = APIRouter(prefix="/financeiro", tags=["Financeiro"])
 
@@ -183,6 +183,28 @@ async def importar_excel(
         raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
+
+    # Detecta Fluxo de Caixa automaticamente e importa sem precisar do parâmetro tipo
+    if not file.filename.lower().endswith(".csv") and is_fluxo_caixa(conteudo):
+        linhas = ler_fluxo_caixa(conteudo)
+        criados = 0
+        for linha in linhas:
+            db.add(TituloFinanceiro(
+                empresa_id=usuario.empresa_id,
+                tipo=linha["tipo"],
+                titulo=linha["titulo"],
+                contraparte_codigo=None,
+                contraparte_nome=linha.get("contraparte_nome"),
+                emissao=linha.get("emissao", ""),
+                vencimento=linha.get("vencimento", ""),
+                valor=linha["valor"],
+                saldo=linha["saldo"],
+                tipo_doc="Fluxo de Caixa",
+            ))
+            criados += 1
+        db.commit()
+        return {"criados": criados, "total_linhas": len(linhas), "formato": "Fluxo de Caixa"}
+
     linhas = ler_linhas(conteudo, MAPA_COLUNAS, nome_arquivo=file.filename)
 
     criados = 0

@@ -1,11 +1,107 @@
 """Funções utilitárias para leitura de planilhas Excel enviadas pelos usuários."""
 from __future__ import annotations
+import calendar
 import io
 import unicodedata
 from datetime import datetime
 from typing import Optional
 
 import openpyxl
+
+_MESES = {
+    "JAN": 1, "FEV": 2, "MAR": 3, "ABR": 4, "MAI": 5, "JUN": 6,
+    "JUL": 7, "AGO": 8, "SET": 9, "OUT": 10, "NOV": 11, "DEZ": 12,
+}
+
+_LINHAS_IGNORADAS = {
+    "saldo inicial", "entradas (receitas)", "saidas (despesas)",
+    "total receitas", "total saidas", "resultado do mes",
+    "total entradas", "total despesas",
+}
+
+_LINHAS_ENTRADAS = {"entradas (receitas)", "total receitas"}
+_LINHAS_SAIDAS = {"saidas (despesas)", "total saidas"}
+
+
+def is_fluxo_caixa(conteudo: bytes) -> bool:
+    """Retorna True se a planilha parece ser um Fluxo de Caixa (primeira célula contém 'fluxo de caixa')."""
+    wb = openpyxl.load_workbook(io.BytesIO(conteudo), data_only=True)
+    ws = wb.active
+    primeira = normalizar(ws.cell(1, 1).value or "")
+    return "fluxo de caixa" in primeira
+
+
+def ler_fluxo_caixa(conteudo: bytes) -> list[dict]:
+    """
+    Lê planilha no formato Fluxo de Caixa (categorias x meses) e retorna
+    uma lista de lançamentos individuais, um por (categoria, mês) com valor != 0.
+    Cada item inclui a chave 'tipo': 'receber' (ENTRADAS) ou 'pagar' (SAÍDAS).
+    """
+    wb = openpyxl.load_workbook(io.BytesIO(conteudo), data_only=True)
+    ws = wb.active
+
+    # Extrai ano do cabeçalho (ex: "FLUXO DE CAIXA - 2026")
+    cabecalho = str(ws.cell(1, 1).value or "")
+    ano = datetime.now().year
+    for parte in cabecalho.split():
+        if parte.isdigit() and len(parte) == 4:
+            ano = int(parte)
+            break
+
+    # Mapeia índice de coluna → número do mês
+    col_mes: dict[int, int] = {}
+    for col_idx, cel in enumerate(ws[1], start=1):
+        val = str(cel.value or "").strip().upper()
+        if val in _MESES:
+            col_mes[col_idx] = _MESES[val]
+
+    if not col_mes:
+        return []
+
+    tipo_atual = "receber"
+    lancamentos = []
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        categoria = normalizar(row[0])
+        if not categoria:
+            continue
+        if categoria in _LINHAS_SAIDAS:
+            tipo_atual = "pagar"
+            continue
+        if categoria in _LINHAS_ENTRADAS:
+            tipo_atual = "receber"
+            continue
+        if categoria in _LINHAS_IGNORADAS:
+            continue
+
+        nome_categoria = str(row[0]).strip()
+
+        for col_idx, mes in col_mes.items():
+            valor = row[col_idx - 1]
+            try:
+                valor = float(valor or 0)
+            except (TypeError, ValueError):
+                continue
+            if valor == 0:
+                continue
+
+            ultimo_dia = calendar.monthrange(ano, mes)[1]
+            vencimento = f"{ano}{mes:02d}{ultimo_dia:02d}"
+            emissao = f"{ano}{mes:02d}01"
+            titulo = f"{nome_categoria[:30]}-{list(_MESES.keys())[mes-1]}{ano}"
+
+            lancamentos.append({
+                "titulo": titulo,
+                "contraparte_nome": nome_categoria,
+                "emissao": emissao,
+                "vencimento": vencimento,
+                "valor": abs(valor),
+                "saldo": abs(valor),
+                "tipo_doc": "Fluxo de Caixa",
+                "tipo": tipo_atual,
+            })
+
+    return lancamentos
 
 
 def normalizar(texto) -> str:
