@@ -25,8 +25,6 @@ export default function Admin() {
   const [erro, setErro] = useState('')
   const [resultados, setResultados] = useState({})
   const [importando, setImportando] = useState('')
-  const [tipoFinanceiro, setTipoFinanceiro] = useState('receber')
-  const [tipoExportFinanceiro, setTipoExportFinanceiro] = useState('receber')
   const [exportando, setExportando] = useState('')
   const [usuarioParaBloquear, setUsuarioParaBloquear] = useState(null)
   const [bloqueando, setBloqueando] = useState(false)
@@ -414,16 +412,13 @@ export default function Admin() {
               {/* Financeiro */}
               <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Financeiro (Contas a Receber/Pagar)</p>
-                <select className="input" value={tipoFinanceiro} onChange={e => setTipoFinanceiro(e.target.value)}>
-                  <option value="receber">Contas a Receber</option>
-                  <option value="pagar">Contas a Pagar</option>
-                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">A planilha deve ter uma coluna <strong>"Tipo"</strong> com o valor <em>receber</em> ou <em>pagar</em> em cada linha</p>
                 <div className="flex flex-wrap gap-2">
                   <label className="btn-secondary cursor-pointer inline-flex items-center gap-2 text-sm">
                     <Upload size={14} />
                     {importando === 'financeiro' ? 'Importando...' : 'Selecionar arquivo .xlsx ou .csv'}
                     <input type="file" accept=".xlsx,.xls,.csv" className="hidden"
-                      onChange={e => handleUpload('financeiro', `/financeiro/importar-excel?tipo=${tipoFinanceiro}`, e)}
+                      onChange={e => handleUpload('financeiro', '/financeiro/importar-excel', e)}
                       disabled={!!importando} />
                   </label>
                   <button onClick={() => baixarModelo('financeiro', 'modelo-financeiro.xlsx')}
@@ -434,7 +429,7 @@ export default function Admin() {
                 {resultados.financeiro && (
                   <div className="flex items-center gap-2 text-xs text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded-lg px-3 py-2">
                     <AlertCircle size={14} />
-                    {resultados.financeiro.criados} título(s) importado(s) de {resultados.financeiro.total_linhas} linha(s) ({resultados.financeiro.tipo})
+                    {resultados.financeiro.criados} título(s) importado(s){resultados.financeiro.ignorados > 0 ? `, ${resultados.financeiro.ignorados} ignorado(s) (tipo não reconhecido)` : ''} de {resultados.financeiro.total_linhas} linha(s)
                   </div>
                 )}
               </div>
@@ -532,12 +527,9 @@ export default function Admin() {
               {/* Financeiro */}
               <div className="border border-gray-100 dark:border-gray-700 rounded-xl p-4 space-y-3">
                 <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">Financeiro (Contas a Receber/Pagar)</p>
-                <select className="input" value={tipoExportFinanceiro} onChange={e => setTipoExportFinanceiro(e.target.value)}>
-                  <option value="receber">Contas a Receber</option>
-                  <option value="pagar">Contas a Pagar</option>
-                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Exporta receber e pagar em uma única planilha com coluna "Tipo"</p>
                 <button
-                  onClick={() => exportarCsv('financeiro', `/admin/exportar/financeiro?tipo=${tipoExportFinanceiro}`, `financeiro-${tipoExportFinanceiro}.csv`)}
+                  onClick={() => exportarCsv('financeiro', '/admin/exportar/financeiro', 'financeiro.csv')}
                   disabled={!!exportando}
                   className="btn-secondary text-sm flex items-center gap-2">
                   <Download size={14} /> {exportando === 'financeiro' ? 'Exportando...' : 'Exportar CSV'}

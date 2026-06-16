@@ -1,6 +1,6 @@
 from __future__ import annotations
 import io
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -18,11 +18,12 @@ MODELOS = {
     "financeiro": {
         "arquivo": "modelo-financeiro.xlsx",
         "colunas": [
-            "Número do Título", "Código (Cliente/Fornecedor)", "Nome (Cliente/Fornecedor)",
+            "Tipo", "Número do Título", "Código (Cliente/Fornecedor)", "Nome (Cliente/Fornecedor)",
             "Data de Emissão", "Data de Vencimento", "Valor", "Saldo",
         ],
         "exemplos": [
-            ["NF-1001", "00123", "Empresa Exemplo Ltda", "01/06/2026", "30/06/2026", 1500.00, 1500.00],
+            ["receber", "NF-1001", "00123", "Cliente Exemplo Ltda", "01/06/2026", "30/06/2026", 1500.00, 1500.00],
+            ["pagar", "NF-2001", "00456", "Fornecedor Exemplo Ltda", "01/06/2026", "15/06/2026", 800.00, 800.00],
         ],
     },
     "estoque": {
@@ -83,21 +84,17 @@ def _csv_response(colunas: list[str], linhas: list[list], nome_arquivo: str) -> 
 
 
 @router.get("/exportar/financeiro")
-def exportar_financeiro(
-    tipo: str = Query("receber", description="receber ou pagar"),
-    db: Session = Depends(get_db),
-    usuario: Usuario = Depends(get_usuario_atual),
-):
-    if tipo not in ("receber", "pagar"):
-        raise HTTPException(400, "O parâmetro 'tipo' deve ser 'receber' ou 'pagar'")
-
-    titulos = listar_titulos_todos(db, usuario.empresa_id, tipo)
-    colunas = ["Número do Título", "Código (Cliente/Fornecedor)", "Nome (Cliente/Fornecedor)", "Data de Emissão", "Data de Vencimento", "Valor", "Saldo"]
+def exportar_financeiro(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    receber = listar_titulos_todos(db, usuario.empresa_id, "receber")
+    pagar = listar_titulos_todos(db, usuario.empresa_id, "pagar")
+    todos = receber + pagar
+    todos.sort(key=lambda t: (t.vencimento or "", t.tipo))
+    colunas = ["Tipo", "Número do Título", "Código (Cliente/Fornecedor)", "Nome (Cliente/Fornecedor)", "Data de Emissão", "Data de Vencimento", "Valor", "Saldo"]
     linhas = [
-        [t.titulo, t.contraparte_codigo, t.contraparte_nome, formatar_data_br(t.emissao), formatar_data_br(t.vencimento), t.valor or 0, t.saldo or 0]
-        for t in titulos
+        [t.tipo, t.titulo, t.contraparte_codigo, t.contraparte_nome, formatar_data_br(t.emissao), formatar_data_br(t.vencimento), t.valor or 0, t.saldo or 0]
+        for t in todos
     ]
-    return _csv_response(colunas, linhas, f"financeiro-{tipo}.csv")
+    return _csv_response(colunas, linhas, "financeiro.csv")
 
 
 @router.get("/exportar/estoque")

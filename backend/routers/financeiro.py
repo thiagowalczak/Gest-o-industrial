@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
@@ -25,25 +25,77 @@ class TituloBody(BaseModel):
 
 
 MAPA_COLUNAS = {
+    # tipo financeiro (receber / pagar) — discriminador principal da linha
+    "tipo": "tipo",
+    "tipo lancamento": "tipo",
+    "tipo financeiro": "tipo",
+    "natureza": "tipo",
+    "natureza financeira": "tipo",
+    "cr/cp": "tipo",
+    "cr cp": "tipo",
+    "contas": "tipo",
+    # numero / titulo do documento
     "titulo": "titulo",
     "numero": "titulo",
+    "numero do titulo": "titulo",
     "documento": "titulo",
+    "nota": "titulo",
+    "nf": "titulo",
+    "numero da nota": "titulo",
+    "num titulo": "titulo",
+    # contraparte (cliente ou fornecedor)
     "codigo": "contraparte_codigo",
     "codigo do cliente": "contraparte_codigo",
     "codigo do fornecedor": "contraparte_codigo",
+    "cod cliente": "contraparte_codigo",
+    "cod fornecedor": "contraparte_codigo",
     "cliente": "contraparte_nome",
     "fornecedor": "contraparte_nome",
     "nome": "contraparte_nome",
+    "nome do cliente": "contraparte_nome",
+    "nome do fornecedor": "contraparte_nome",
     "razao social": "contraparte_nome",
+    "empresa": "contraparte_nome",
+    # datas
     "emissao": "emissao",
     "data de emissao": "emissao",
+    "data emissao": "emissao",
+    "dt emissao": "emissao",
     "vencimento": "vencimento",
     "data de vencimento": "vencimento",
+    "data vencimento": "vencimento",
+    "dt vencimento": "vencimento",
+    "data": "vencimento",
+    # valores
     "valor": "valor",
+    "valor do titulo": "valor",
+    "valor total": "valor",
+    "valor original": "valor",
     "saldo": "saldo",
-    "tipo": "tipo_doc",
+    "saldo restante": "saldo",
+    "saldo devedor": "saldo",
+    "saldo a pagar": "saldo",
+    "saldo a receber": "saldo",
+    "valor em aberto": "saldo",
+    # tipo de documento (NF, boleto etc.)
     "tipo de documento": "tipo_doc",
+    "tipo doc": "tipo_doc",
+    "documento fiscal": "tipo_doc",
+    "especie": "tipo_doc",
+    "especie documento": "tipo_doc",
 }
+
+
+def _normalizar_tipo(valor) -> str:
+    """Converte qualquer variação de tipo financeiro para 'receber' ou 'pagar'."""
+    v = str(valor or "").strip().lower()
+    if v in ("r", "cr", "receber", "a receber", "conta a receber", "contas a receber",
+             "entrada", "receita", "credito", "crédito"):
+        return "receber"
+    if v in ("p", "cp", "pagar", "a pagar", "conta a pagar", "contas a pagar",
+             "saida", "saída", "despesa", "debito", "débito"):
+        return "pagar"
+    return v
 
 
 def _resumo(titulos):
@@ -124,12 +176,9 @@ def remover_titulo(titulo_id: int, db: Session = Depends(get_db), usuario: Usuar
 @router.post("/importar-excel")
 async def importar_excel(
     file: UploadFile = File(...),
-    tipo: str = Query("receber", description="receber ou pagar"),
     db: Session = Depends(get_db),
     usuario: Usuario = Depends(get_usuario_atual),
 ):
-    if tipo not in ("receber", "pagar"):
-        raise HTTPException(400, "O parâmetro 'tipo' deve ser 'receber' ou 'pagar'")
     if not file.filename.endswith((".xlsx", ".xls", ".csv")):
         raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
@@ -137,13 +186,25 @@ async def importar_excel(
     linhas = ler_linhas(conteudo, MAPA_COLUNAS, nome_arquivo=file.filename)
 
     criados = 0
+    ignorados = 0
     for linha in linhas:
         titulo_num = str(linha.get("titulo") or "").strip()
         if not titulo_num:
             continue
-        valor = float(linha.get("valor") or 0)
-        saldo = linha.get("saldo")
-        saldo = float(saldo) if saldo not in (None, "") else valor
+        tipo = _normalizar_tipo(linha.get("tipo"))
+        if tipo not in ("receber", "pagar"):
+            ignorados += 1
+            continue
+        valor_raw = linha.get("valor")
+        try:
+            valor = float(str(valor_raw).replace(",", ".")) if valor_raw not in (None, "") else 0.0
+        except (ValueError, TypeError):
+            valor = 0.0
+        saldo_raw = linha.get("saldo")
+        try:
+            saldo = float(str(saldo_raw).replace(",", ".")) if saldo_raw not in (None, "") else valor
+        except (ValueError, TypeError):
+            saldo = valor
 
         db.add(TituloFinanceiro(
             empresa_id=usuario.empresa_id,
@@ -160,4 +221,4 @@ async def importar_excel(
         criados += 1
 
     db.commit()
-    return {"criados": criados, "total_linhas": len(linhas), "tipo": tipo}
+    return {"criados": criados, "ignorados": ignorados, "total_linhas": len(linhas)}
