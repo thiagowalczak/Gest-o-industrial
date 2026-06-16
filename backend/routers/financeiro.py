@@ -199,7 +199,7 @@ async def importar_excel(
                 vencimento=linha.get("vencimento", ""),
                 valor=linha["valor"],
                 saldo=linha["saldo"],
-                tipo_doc="Fluxo de Caixa",
+                tipo_doc="FC",
             ))
             criados += 1
         db.commit()

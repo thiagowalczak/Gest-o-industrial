@@ -88,7 +88,8 @@ def ler_fluxo_caixa(conteudo: bytes) -> list[dict]:
             ultimo_dia = calendar.monthrange(ano, mes)[1]
             vencimento = f"{ano}{mes:02d}{ultimo_dia:02d}"
             emissao = f"{ano}{mes:02d}01"
-            titulo = f"{nome_categoria[:30]}-{list(_MESES.keys())[mes-1]}{ano}"
+            mes_nome = list(_MESES.keys())[mes - 1]
+            titulo = f"{nome_categoria[:18]}-{mes_nome}{ano}"  # max 30 chars
 
             lancamentos.append({
                 "titulo": titulo,
@@ -97,7 +98,7 @@ def ler_fluxo_caixa(conteudo: bytes) -> list[dict]:
                 "vencimento": vencimento,
                 "valor": abs(valor),
                 "saldo": abs(valor),
-                "tipo_doc": "Fluxo de Caixa",
+                "tipo_doc": "FC",  # String(10) no banco
                 "tipo": tipo_atual,
             })
 
