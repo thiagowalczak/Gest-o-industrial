@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from db.local_db import get_db, Usuario, ItemEstoque
+from db.local_db import get_db, Usuario, ItemEstoque, ImportacaoLog
 from routers.auth import get_usuario_atual
 from services.dados_service import (
     listar_estoque, item_estoque_dict,
@@ -137,6 +137,10 @@ async def importar_excel(file: UploadFile = File(...), db: Session = Depends(get
     conteudo = await file.read()
     linhas = ler_linhas(conteudo, MAPA_COLUNAS, nome_arquivo=file.filename)
 
+    log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="estoque", nome_arquivo=file.filename)
+    db.add(log)
+    db.flush()
+
     criados, atualizados = 0, 0
     for linha in linhas:
         codigo = str(linha.get("codigo") or "").strip()
@@ -159,9 +163,10 @@ async def importar_excel(file: UploadFile = File(...), db: Session = Depends(get
                 setattr(item, k, v)
             atualizados += 1
         else:
-            db.add(ItemEstoque(empresa_id=usuario.empresa_id, **dados))
+            db.add(ItemEstoque(empresa_id=usuario.empresa_id, importacao_id=log.id, **dados))
             criados += 1
 
+    log.total_registros = criados
     db.commit()
     return {"criados": criados, "atualizados": atualizados, "total_linhas": len(linhas)}
 

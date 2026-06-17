@@ -1,6 +1,7 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey, inspect
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy import text
 from datetime import datetime
 import os
 from dotenv import load_dotenv
@@ -82,6 +83,17 @@ class LogAtividade(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
+# ── IMPORTAÇÕES ────────────────────────────────────────────────────────────────
+class ImportacaoLog(Base):
+    __tablename__ = "importacoes_log"
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    modulo = Column(String(30), nullable=False)  # financeiro, estoque, producao, compras
+    nome_arquivo = Column(String(200))
+    total_registros = Column(Integer, default=0)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
 # ── ESTOQUE ────────────────────────────────────────────────────────────────────
 class ItemEstoque(Base):
     __tablename__ = "itens_estoque"
@@ -96,6 +108,7 @@ class ItemEstoque(Base):
     grupo = Column(String(20))
     estoque_minimo = Column(Float, default=0)
     ponto_reposicao = Column(Float, default=0)
+    importacao_id = Column(Integer, nullable=True)
     atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -115,6 +128,7 @@ class PedidoCompra(Base):
     fornecedor = Column(String(30))
     nome_fornecedor = Column(String(150))
     status = Column(String(20), default="Pedido feito")
+    importacao_id = Column(Integer, nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
@@ -132,6 +146,7 @@ class TituloFinanceiro(Base):
     valor = Column(Float, default=0)
     saldo = Column(Float, default=0)
     tipo_doc = Column(String(10), default="NF")
+    importacao_id = Column(Integer, nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
@@ -149,11 +164,35 @@ class OrdemProducao(Base):
     data_inicio = Column(String(8))
     data_fim = Column(String(8))
     situacao = Column(String(2), default="A")  # A,L,P,E,C
+    importacao_id = Column(Integer, nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
 def criar_tabelas():
     Base.metadata.create_all(bind=engine)
+
+
+def migrar_tabelas():
+    """Adiciona colunas novas em tabelas existentes de forma idempotente."""
+    insp = inspect(engine)
+    novas_colunas = [
+        ("itens_estoque", "importacao_id", "INTEGER"),
+        ("titulos_financeiros", "importacao_id", "INTEGER"),
+        ("pedidos_compra", "importacao_id", "INTEGER"),
+        ("ordens_producao", "importacao_id", "INTEGER"),
+    ]
+    with engine.connect() as conn:
+        for tabela, coluna, tipo in novas_colunas:
+            try:
+                cols = [c["name"] for c in insp.get_columns(tabela)]
+            except Exception:
+                cols = []
+            if coluna not in cols:
+                try:
+                    conn.execute(text(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}"))
+                    conn.commit()
+                except Exception:
+                    pass
 
 
 def get_db():

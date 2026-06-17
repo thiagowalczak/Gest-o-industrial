@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy.orm import Session
 import os
 
-from db.local_db import criar_tabelas, SessionLocal
+from db.local_db import criar_tabelas, migrar_tabelas, SessionLocal
 from services.auth_service import criar_admin_padrao
 from routers import auth, usuarios, dashboard, financeiro, estoque, producao, admin, empresa
 
@@ -17,6 +17,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     criar_tabelas()
+    migrar_tabelas()
     db: Session = SessionLocal()
     try:
         criar_admin_padrao(db)

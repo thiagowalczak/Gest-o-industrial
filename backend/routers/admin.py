@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from db.local_db import get_db, Usuario
+from db.local_db import get_db, Usuario, ImportacaoLog, ItemEstoque, TituloFinanceiro, PedidoCompra, OrdemProducao
 from routers.auth import get_usuario_atual
 from services.excel_utils import gerar_modelo_excel, gerar_csv, formatar_data_br
 from services.dados_service import listar_estoque, listar_producao, listar_compras, listar_titulos_todos
@@ -128,3 +128,71 @@ def exportar_compras(db: Session = Depends(get_db), usuario: Usuario = Depends(g
         for p in pedidos
     ]
     return _csv_response(colunas, linhas, "compras.csv")
+
+
+# ── HISTÓRICO DE IMPORTAÇÕES ──────────────────────────────────────────────────
+MODULO_LABEL = {
+    "financeiro": "Financeiro",
+    "estoque": "Estoque",
+    "producao": "Produção",
+    "compras": "Compras",
+}
+
+
+@router.get("/importacoes")
+def listar_importacoes(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    logs = (
+        db.query(ImportacaoLog)
+        .filter(ImportacaoLog.empresa_id == usuario.empresa_id)
+        .order_by(ImportacaoLog.criado_em.desc())
+        .all()
+    )
+    return [
+        {
+            "id": l.id,
+            "modulo": l.modulo,
+            "modulo_label": MODULO_LABEL.get(l.modulo, l.modulo),
+            "nome_arquivo": l.nome_arquivo,
+            "total_registros": l.total_registros,
+            "criado_em": l.criado_em.isoformat() if l.criado_em else None,
+        }
+        for l in logs
+    ]
+
+
+@router.delete("/importacoes/{importacao_id}")
+def remover_importacao(importacao_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    log = db.query(ImportacaoLog).filter(
+        ImportacaoLog.id == importacao_id,
+        ImportacaoLog.empresa_id == usuario.empresa_id,
+    ).first()
+    if not log:
+        raise HTTPException(404, "Importação não encontrada")
+
+    modulo = log.modulo
+    if modulo == "financeiro":
+        removidos = db.query(TituloFinanceiro).filter(
+            TituloFinanceiro.empresa_id == usuario.empresa_id,
+            TituloFinanceiro.importacao_id == importacao_id,
+        ).delete(synchronize_session=False)
+    elif modulo == "estoque":
+        removidos = db.query(ItemEstoque).filter(
+            ItemEstoque.empresa_id == usuario.empresa_id,
+            ItemEstoque.importacao_id == importacao_id,
+        ).delete(synchronize_session=False)
+    elif modulo == "producao":
+        removidos = db.query(OrdemProducao).filter(
+            OrdemProducao.empresa_id == usuario.empresa_id,
+            OrdemProducao.importacao_id == importacao_id,
+        ).delete(synchronize_session=False)
+    elif modulo == "compras":
+        removidos = db.query(PedidoCompra).filter(
+            PedidoCompra.empresa_id == usuario.empresa_id,
+            PedidoCompra.importacao_id == importacao_id,
+        ).delete(synchronize_session=False)
+    else:
+        removidos = 0
+
+    db.delete(log)
+    db.commit()
+    return {"removidos": removidos, "modulo": modulo}

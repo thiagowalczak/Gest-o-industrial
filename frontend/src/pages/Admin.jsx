@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, FileDown, Download, Building2, Save, PlusCircle } from 'lucide-react'
+import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, FileDown, Download, Building2, Save, PlusCircle, History, Trash2, PackageCheck } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
 const PLANOS = ['trial', 'basico', 'pro']
@@ -40,6 +40,10 @@ export default function Admin() {
   const [erroNovaEmpresa, setErroNovaEmpresa] = useState('')
   const [msgNovaEmpresa, setMsgNovaEmpresa] = useState('')
 
+  const [importacoes, setImportacoes] = useState([])
+  const [importacaoParaRemover, setImportacaoParaRemover] = useState(null)
+  const [removendoImportacao, setRemovendoImportacao] = useState(false)
+
   const carregar = () => {
     api.get('/usuarios/').then(r => setUsuarios(r.data)).catch(() => setUsuarios(DEMO_USERS))
   }
@@ -51,7 +55,11 @@ export default function Admin() {
     }).catch(() => {})
   }
 
-  useEffect(() => { carregar(); carregarEmpresa() }, [])
+  const carregarImportacoes = () => {
+    api.get('/admin/importacoes').then(r => setImportacoes(r.data)).catch(() => setImportacoes([]))
+  }
+
+  useEffect(() => { carregar(); carregarEmpresa(); carregarImportacoes() }, [])
 
   const abrirNovo = () => { setForm(vazio); setEditando(null); setErro(''); setModal(true) }
   const abrirEditar = (u) => {
@@ -130,6 +138,19 @@ export default function Admin() {
     try { await api.post(`/usuarios/${id}/reativar`); carregar() } catch {}
   }
 
+  const confirmarRemocaoImportacao = async () => {
+    if (!importacaoParaRemover) return
+    setRemovendoImportacao(true)
+    try {
+      await api.delete(`/admin/importacoes/${importacaoParaRemover.id}`)
+      carregarImportacoes()
+    } catch {
+    } finally {
+      setRemovendoImportacao(false)
+      setImportacaoParaRemover(null)
+    }
+  }
+
   const baixarModelo = async (tipo, nomeArquivo) => {
     try {
       const { data } = await api.get(`/admin/modelo/${tipo}`, { responseType: 'blob' })
@@ -199,7 +220,7 @@ export default function Admin() {
       <div className="card">
         {/* Abas */}
         <div className="flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-700 pb-3 flex-wrap">
-          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas'], ['exportar', 'Exportar Planilhas']].map(([id, label]) => (
+          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas'], ['exportar', 'Exportar Planilhas'], ['historico', `Histórico (${importacoes.length})`]].map(([id, label]) => (
             <button key={id} onClick={() => setAba(id)} aria-pressed={aba === id}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                 aba === id ? 'bg-primary-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -574,6 +595,67 @@ export default function Admin() {
             </div>
           </div>
         )}
+        {/* Aba Histórico de Importações */}
+        {aba === 'historico' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg"><History size={20} className="text-primary-600" /></div>
+                <div>
+                  <p className="font-bold text-gray-900 dark:text-gray-100">Histórico de Importações</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Planilhas importadas — você pode remover uma importação para excluir os registros associados</p>
+                </div>
+              </div>
+              <button onClick={carregarImportacoes} className="btn-secondary text-sm flex items-center gap-1"><RefreshCw size={14} /> Atualizar</button>
+            </div>
+
+            {importacoes.length === 0 ? (
+              <p className="text-center text-gray-500 dark:text-gray-400 py-10">Nenhuma importação registrada ainda. Importe uma planilha na aba "Importar Planilhas".</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-700">
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Módulo</th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Arquivo</th>
+                      <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Registros</th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Data / Hora</th>
+                      <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importacoes.map(imp => (
+                      <tr key={imp.id} className="border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30">
+                        <td className="py-2 px-3">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                            imp.modulo === 'financeiro' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                            imp.modulo === 'estoque' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                            imp.modulo === 'producao' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+                            'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+                          }`}>{imp.modulo_label}</span>
+                        </td>
+                        <td className="py-2 px-3 text-xs text-gray-700 dark:text-gray-300 max-w-[240px] truncate" title={imp.nome_arquivo}>{imp.nome_arquivo}</td>
+                        <td className="py-2 px-3 text-center font-semibold text-gray-800 dark:text-gray-200">{imp.total_registros}</td>
+                        <td className="py-2 px-3 text-xs text-gray-500 dark:text-gray-400">
+                          {imp.criado_em ? new Date(imp.criado_em).toLocaleString('pt-BR') : '—'}
+                        </td>
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            onClick={() => setImportacaoParaRemover(imp)}
+                            title="Remover importação e seus registros"
+                            aria-label={`Remover importação ${imp.nome_arquivo}`}
+                            className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded cursor-pointer">
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Modal */}
@@ -637,6 +719,16 @@ export default function Admin() {
         descricao={`Tem certeza que deseja bloquear o acesso de "${usuarioParaBloquear?.nome}"? O usuário não conseguirá mais fazer login até ser reativado.`}
         textoConfirmar="Bloquear"
         carregando={bloqueando}
+      />
+
+      <ConfirmDialog
+        aberto={!!importacaoParaRemover}
+        onConfirmar={confirmarRemocaoImportacao}
+        onCancelar={() => setImportacaoParaRemover(null)}
+        titulo="Remover importação"
+        descricao={`Remover a importação "${importacaoParaRemover?.nome_arquivo}" (${importacaoParaRemover?.modulo_label})? Isso vai excluir permanentemente os ${importacaoParaRemover?.total_registros} registro(s) criados por ela. Esta ação não pode ser desfeita.`}
+        textoConfirmar="Remover registros"
+        carregando={removendoImportacao}
       />
     </div>
   )

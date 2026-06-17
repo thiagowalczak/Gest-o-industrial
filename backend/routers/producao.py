@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra
+from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra, ImportacaoLog
 from routers.auth import get_usuario_atual
 from services.dados_service import (
     listar_producao, ordem_producao_dict, SITUACOES_PRODUCAO,
@@ -26,6 +26,10 @@ class OrdemProducaoBody(BaseModel):
     data_inicio: Optional[str] = None
     data_fim: Optional[str] = None
     situacao: str = "A"
+
+
+class SituacaoBody(BaseModel):
+    situacao: str
 
 
 class PedidoCompraBody(BaseModel):
@@ -91,8 +95,8 @@ MAPA_COLUNAS_COMPRAS = {
 
 # ── ORDENS DE PRODUÇÃO ───────────────────────────────────────────────────────
 @router.get("/ordens")
-def ordens(usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
-    ordens = listar_producao(db, usuario.empresa_id)
+def ordens(todas: bool = False, usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
+    ordens = listar_producao(db, usuario.empresa_id, somente_abertas=not todas)
     return {"ordens": [ordem_producao_dict(o) for o in ordens], "total": len(ordens)}
 
 
@@ -125,6 +129,18 @@ def criar_ordem(body: OrdemProducaoBody, db: Session = Depends(get_db), usuario:
     return ordem_producao_dict(ordem)
 
 
+@router.patch("/ordens/{ordem_id}/situacao")
+def atualizar_situacao(ordem_id: int, body: SituacaoBody, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    if body.situacao not in ("A", "L", "P", "E", "C"):
+        raise HTTPException(400, "Situação inválida. Use: A, L, P, E ou C")
+    ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
+    if not ordem:
+        raise HTTPException(404, "Ordem não encontrada")
+    ordem.situacao = body.situacao
+    db.commit()
+    return ordem_producao_dict(ordem)
+
+
 @router.put("/ordens/{ordem_id}")
 def atualizar_ordem(ordem_id: int, body: OrdemProducaoBody, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
@@ -154,6 +170,10 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
     conteudo = await file.read()
     linhas = ler_linhas(conteudo, MAPA_COLUNAS_PRODUCAO, nome_arquivo=file.filename)
 
+    log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="producao", nome_arquivo=file.filename)
+    db.add(log)
+    db.flush()
+
     criados = 0
     for linha in linhas:
         numero = str(linha.get("numero") or "").strip()
@@ -161,6 +181,7 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
             continue
         db.add(OrdemProducao(
             empresa_id=usuario.empresa_id,
+            importacao_id=log.id,
             numero=numero,
             item=str(linha.get("item") or "01").strip().zfill(2),
             produto=str(linha.get("produto") or "").strip(),
@@ -173,6 +194,7 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
         ))
         criados += 1
 
+    log.total_registros = criados
     db.commit()
     return {"criados": criados, "total_linhas": len(linhas)}
 
@@ -257,6 +279,10 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
     conteudo = await file.read()
     linhas = ler_linhas(conteudo, MAPA_COLUNAS_COMPRAS, nome_arquivo=file.filename)
 
+    log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="compras", nome_arquivo=file.filename)
+    db.add(log)
+    db.flush()
+
     criados = 0
     for linha in linhas:
         numero = str(linha.get("numero") or "").strip()
@@ -269,6 +295,7 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
 
         pedido = PedidoCompra(
             empresa_id=usuario.empresa_id,
+            importacao_id=log.id,
             numero=numero,
             item=str(linha.get("item") or "01").strip().zfill(2),
             produto=str(linha.get("produto") or "").strip(),
@@ -283,5 +310,6 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
         db.add(pedido)
         criados += 1
 
+    log.total_registros = criados
     db.commit()
     return {"criados": criados, "total_linhas": len(linhas)}

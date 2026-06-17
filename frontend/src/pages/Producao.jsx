@@ -1,17 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X } from 'lucide-react'
+import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
 import { TabelaSkeleton } from '../components/ui/skeleton'
-
-const CORES_SITUACAO = {
-  'Aguardando':  'badge-amarelo',
-  'Liberada':    'badge-azul',
-  'Em Produção': 'badge-laranja',
-  'Encerrada':   'badge-verde',
-  'Cancelada':   'badge-vermelho',
-}
 
 const CORES_HEX_SITUACAO = {
   'Aguardando':  '#f59e0b',
@@ -29,6 +21,14 @@ const SITUACOES = [
   ['C', 'Cancelada'],
 ]
 
+const SELECT_COR = {
+  A: 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700',
+  L: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
+  P: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-300 dark:border-orange-700',
+  E: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700',
+  C: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
+}
+
 const ORDEM_VAZIA = {
   numero: '', item: '01', produto: '', descricao: '',
   quantidade_prevista: 0, quantidade_produzida: 0,
@@ -41,6 +41,7 @@ const inputParaData = (v) => v ? v.replace(/-/g, '') : ''
 export default function Producao() {
   const [ordens, setOrdens] = useState([])
   const [resumo, setResumo] = useState(null)
+  const [mostrarTodas, setMostrarTodas] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(ORDEM_VAZIA)
@@ -48,11 +49,12 @@ export default function Producao() {
   const [erro, setErro] = useState('')
   const [ordemParaRemover, setOrdemParaRemover] = useState(null)
   const [removendo, setRemovendo] = useState(false)
+  const [alterandoSituacao, setAlterandoSituacao] = useState(null)
   const [carregando, setCarregando] = useState(true)
 
-  const carregar = () => {
+  const carregar = (todas = mostrarTodas) => {
     Promise.all([
-      api.get('/producao/ordens').catch(() => ({ data: { ordens: DEMO_ORDENS } })),
+      api.get(`/producao/ordens${todas ? '?todas=true' : ''}`).catch(() => ({ data: { ordens: DEMO_ORDENS } })),
       api.get('/producao/resumo').catch(() => ({ data: DEMO_RESUMO })),
     ]).then(([o, r]) => {
       setOrdens(o.data.ordens || [])
@@ -62,6 +64,12 @@ export default function Producao() {
 
   useEffect(() => { carregar() }, [])
 
+  const toggleMostrarTodas = () => {
+    const novoValor = !mostrarTodas
+    setMostrarTodas(novoValor)
+    carregar(novoValor)
+  }
+
   const distribuicaoSituacao = useMemo(() => {
     const porSituacao = resumo?.por_situacao || {}
     return Object.entries(porSituacao).map(([nome, valor]) => ({
@@ -70,6 +78,18 @@ export default function Producao() {
       cor: CORES_HEX_SITUACAO[nome] || '#9ca3af',
     }))
   }, [resumo])
+
+  const mudarSituacao = async (ordemId, novaSituacao) => {
+    setAlterandoSituacao(ordemId)
+    try {
+      const { data } = await api.patch(`/producao/ordens/${ordemId}/situacao`, { situacao: novaSituacao })
+      setOrdens(prev => prev.map(o => o.id === ordemId ? data : o))
+      api.get('/producao/resumo').then(r => setResumo(r.data)).catch(() => {})
+    } catch {
+    } finally {
+      setAlterandoSituacao(null)
+    }
+  }
 
   const abrirNova = () => {
     setEditando(null)
@@ -164,13 +184,26 @@ export default function Producao() {
 
       {/* Ordens */}
       <div className="card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <Factory size={18} className="text-primary-500" /> Ordens de Produção
           </h3>
-          <button onClick={abrirNova} className="btn-primary text-sm flex items-center gap-2">
-            <Plus size={14} /> Nova Ordem
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleMostrarTodas}
+              title={mostrarTodas ? 'Ocultar encerradas e canceladas' : 'Mostrar todas as ordens'}
+              className={`text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer ${
+                mostrarTodas
+                  ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                  : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}>
+              {mostrarTodas ? <Eye size={14} /> : <EyeOff size={14} />}
+              {mostrarTodas ? 'Todas' : 'Em aberto'}
+            </button>
+            <button onClick={abrirNova} className="btn-primary text-sm flex items-center gap-2">
+              <Plus size={14} /> Nova Ordem
+            </button>
+          </div>
         </div>
 
         {mostrarForm && (
@@ -241,7 +274,7 @@ export default function Producao() {
             <tbody>
               {carregando && ordens.length === 0 && <TabelaSkeleton linhas={5} colunas={8} />}
               {ordens.map((o, i) => (
-                <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                <tr key={i} className={`border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30 ${o.situacao === 'E' ? 'opacity-60' : ''} ${o.situacao === 'C' ? 'opacity-40' : ''}`}>
                   <td className="py-2 px-3 font-mono text-xs">{o.numero}/{o.item}</td>
                   <td className="py-2 px-3 text-gray-700 dark:text-gray-300 text-xs truncate max-w-[200px]">{o.descricao || o.produto}</td>
                   <td className="py-2 px-3 text-right">{Number(o.quantidade_prevista || 0).toLocaleString('pt-BR')}</td>
@@ -250,9 +283,14 @@ export default function Producao() {
                     {String(o.data_fim || '').replace(/(\d{4})(\d{2})(\d{2})/, '$3/$2/$1') || '—'}
                   </td>
                   <td className="py-2 px-3 text-center">
-                    <span className={CORES_SITUACAO[o.situacao_descricao] || 'badge-azul'}>
-                      {o.situacao_descricao || o.situacao}
-                    </span>
+                    <select
+                      value={o.situacao}
+                      onChange={e => mudarSituacao(o.id, e.target.value)}
+                      disabled={alterandoSituacao === o.id}
+                      aria-label={`Status da ordem ${o.numero}/${o.item}`}
+                      className={`text-xs font-semibold rounded-full px-2.5 py-1 border cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary-400 transition-colors disabled:opacity-50 disabled:cursor-wait ${SELECT_COR[o.situacao] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                      {SITUACOES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
                   </td>
                   <td className="py-2 px-3 w-28">
                     <div className="bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
@@ -262,8 +300,8 @@ export default function Producao() {
                   </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => abrirEdicao(o)} aria-label={`Editar ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"><Edit2 size={14} /></button>
-                      <button onClick={() => setOrdemParaRemover(o)} aria-label={`Remover ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded"><Trash2 size={14} /></button>
+                      <button onClick={() => abrirEdicao(o)} aria-label={`Editar ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded cursor-pointer"><Edit2 size={14} /></button>
+                      <button onClick={() => setOrdemParaRemover(o)} aria-label={`Remover ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded cursor-pointer"><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from db.local_db import get_db, Usuario, TituloFinanceiro
+from db.local_db import get_db, Usuario, TituloFinanceiro, ImportacaoLog
 from routers.auth import get_usuario_atual
 from services.dados_service import listar_titulos, titulo_dict
 from services.excel_utils import ler_linhas, converter_data, is_fluxo_caixa, ler_fluxo_caixa
@@ -184,6 +184,10 @@ async def importar_excel(
 
     conteudo = await file.read()
 
+    log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="financeiro", nome_arquivo=file.filename)
+    db.add(log)
+    db.flush()
+
     # Detecta Fluxo de Caixa automaticamente e importa sem precisar do parâmetro tipo
     if not file.filename.lower().endswith(".csv") and is_fluxo_caixa(conteudo):
         linhas = ler_fluxo_caixa(conteudo)
@@ -191,6 +195,7 @@ async def importar_excel(
         for linha in linhas:
             db.add(TituloFinanceiro(
                 empresa_id=usuario.empresa_id,
+                importacao_id=log.id,
                 tipo=linha["tipo"],
                 titulo=linha["titulo"],
                 contraparte_codigo=None,
@@ -202,6 +207,7 @@ async def importar_excel(
                 tipo_doc="FC",
             ))
             criados += 1
+        log.total_registros = criados
         db.commit()
         return {"criados": criados, "total_linhas": len(linhas), "formato": "Fluxo de Caixa"}
 
@@ -230,6 +236,7 @@ async def importar_excel(
 
         db.add(TituloFinanceiro(
             empresa_id=usuario.empresa_id,
+            importacao_id=log.id,
             tipo=tipo,
             titulo=titulo_num,
             contraparte_codigo=str(linha.get("contraparte_codigo") or "").strip() or None,
@@ -242,5 +249,6 @@ async def importar_excel(
         ))
         criados += 1
 
+    log.total_registros = criados
     db.commit()
     return {"criados": criados, "ignorados": ignorados, "total_linhas": len(linhas)}
