@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff } from 'lucide-react'
+import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff, AlertTriangle } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
 import { TabelaSkeleton } from '../components/ui/skeleton'
+import toast from 'react-hot-toast'
 
 const CORES_HEX_SITUACAO = {
   'Aguardando':  '#f59e0b',
@@ -51,6 +52,7 @@ export default function Producao() {
   const [removendo, setRemovendo] = useState(false)
   const [alterandoSituacao, setAlterandoSituacao] = useState(null)
   const [carregando, setCarregando] = useState(true)
+  const [limpando, setLimpando] = useState(false)
 
   const carregar = (todas = mostrarTodas) => {
     Promise.all([
@@ -63,6 +65,20 @@ export default function Producao() {
   }
 
   useEffect(() => { carregar() }, [])
+
+  const handleLimparTudo = async () => {
+    if (!window.confirm('Remover TODAS as ordens de produção? Esta ação não pode ser desfeita.')) return
+    setLimpando(true)
+    try {
+      const res = await api.delete('/producao/ordens/limpar-tudo')
+      toast.success(`${res.data.removidos} ordem(ns) removida(s)`)
+      carregar()
+    } catch {
+      toast.error('Erro ao limpar ordens')
+    } finally {
+      setLimpando(false)
+    }
+  }
 
   const toggleMostrarTodas = () => {
     const novoValor = !mostrarTodas
@@ -256,6 +272,17 @@ export default function Producao() {
             <button type="submit" className="btn-primary" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar'}</button>
           </form>
         )}
+
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={handleLimparTudo}
+            disabled={limpando || ordens.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+          >
+            <AlertTriangle size={13} />
+            {limpando ? 'Removendo...' : 'Limpar tudo'}
+          </button>
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

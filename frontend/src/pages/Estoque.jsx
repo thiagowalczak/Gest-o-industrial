@@ -4,6 +4,7 @@ import { Package, AlertTriangle, Search, Settings, CheckCircle, Plus, Trash2, Pi
 import ConfirmDialog from '../components/ConfirmDialog'
 import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
 import { TabelaSkeleton } from '../components/ui/skeleton'
+import toast from 'react-hot-toast'
 
 const ITEM_VAZIO = {
   codigo: '', descricao: '', deposito: '', quantidade: 0, custo_medio: 0,
@@ -23,6 +24,7 @@ export default function Estoque() {
   const [itemParaRemover, setItemParaRemover] = useState(null)
   const [removendo, setRemovendo] = useState(false)
   const [carregando, setCarregando] = useState(true)
+  const [limpando, setLimpando] = useState(false)
 
   const carregar = async () => {
     try {
@@ -39,6 +41,20 @@ export default function Estoque() {
   }
 
   useEffect(() => { carregar() }, [])
+
+  const handleLimparTudo = async () => {
+    if (!window.confirm('Remover TODOS os itens do estoque? Esta ação não pode ser desfeita.')) return
+    setLimpando(true)
+    try {
+      const res = await api.delete('/estoque/limpar-tudo')
+      toast.success(`${res.data.removidos} item(ns) removido(s)`)
+      carregar()
+    } catch {
+      toast.error('Erro ao limpar estoque')
+    } finally {
+      setLimpando(false)
+    }
+  }
 
   const itensFiltrados = itens.filter(i =>
     !busca || i.descricao?.toLowerCase().includes(busca.toLowerCase()) || i.codigo?.includes(busca)
@@ -151,9 +167,19 @@ export default function Estoque() {
 
         {aba === 'itens' && (
           <>
-            <div className="relative mb-4">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input className="input pl-9" placeholder="Buscar por código ou descrição..." value={busca} onChange={e => setBusca(e.target.value)} />
+            <div className="flex items-center gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input className="input pl-9" placeholder="Buscar por código ou descrição..." value={busca} onChange={e => setBusca(e.target.value)} />
+              </div>
+              <button
+                onClick={handleLimparTudo}
+                disabled={limpando || itens.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50 whitespace-nowrap"
+              >
+                <AlertTriangle size={13} />
+                {limpando ? 'Removendo...' : 'Limpar tudo'}
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

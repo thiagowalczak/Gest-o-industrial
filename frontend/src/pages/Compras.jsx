@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
-import { ShoppingCart, RefreshCw, Plus, Trash2, Edit2, X, PackageCheck } from 'lucide-react'
+import { ShoppingCart, RefreshCw, Plus, Trash2, Edit2, X, PackageCheck, AlertTriangle } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { TabelaSkeleton } from '../components/ui/skeleton'
+import toast from 'react-hot-toast'
 
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 
@@ -29,6 +30,7 @@ export default function Compras() {
   const [pedidoParaEntregar, setPedidoParaEntregar] = useState(null)
   const [entregando, setEntregando] = useState(false)
   const [carregando, setCarregando] = useState(true)
+  const [limpando, setLimpando] = useState(false)
   const hoje = new Date().toISOString().slice(0, 10).replace(/-/g, '')
 
   const carregar = () => {
@@ -47,6 +49,20 @@ export default function Compras() {
     const iv = setInterval(carregar, 15000)
     return () => clearInterval(iv)
   }, [])
+
+  const handleLimparTudo = async () => {
+    if (!window.confirm('Remover TODOS os pedidos de compra? Esta ação não pode ser desfeita.')) return
+    setLimpando(true)
+    try {
+      const res = await api.delete('/producao/compras/limpar-tudo')
+      toast.success(`${res.data.removidos} pedido(s) removido(s)`)
+      carregar()
+    } catch {
+      toast.error('Erro ao limpar pedidos')
+    } finally {
+      setLimpando(false)
+    }
+  }
 
   const total = pedidos.reduce((s, p) => s + Number(p.valor_total || 0), 0)
   const aguardando = pedidos.filter(p => p.status !== 'Pedido entregue')
@@ -219,6 +235,17 @@ export default function Compras() {
             <button type="submit" className="btn-primary" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar'}</button>
           </form>
         )}
+
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={handleLimparTudo}
+            disabled={limpando || pedidos.length === 0}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+          >
+            <AlertTriangle size={13} />
+            {limpando ? 'Removendo...' : 'Limpar tudo'}
+          </button>
+        </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

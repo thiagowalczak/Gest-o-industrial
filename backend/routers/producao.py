@@ -152,6 +152,15 @@ def atualizar_ordem(ordem_id: int, body: OrdemProducaoBody, db: Session = Depend
     return ordem_producao_dict(ordem)
 
 
+@router.delete("/ordens/limpar-tudo")
+def limpar_ordens(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    removidos = db.query(OrdemProducao).filter(
+        OrdemProducao.empresa_id == usuario.empresa_id
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"removidos": removidos}
+
+
 @router.delete("/ordens/{ordem_id}")
 def remover_ordem(ordem_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
@@ -245,6 +254,15 @@ def atualizar_pedido_compra(pedido_id: int, body: PedidoCompraBody, db: Session 
         setattr(pedido, campo, valor)
     db.commit()
     return pedido_compra_dict(pedido)
+
+
+@router.delete("/compras/limpar-tudo")
+def limpar_compras(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    removidos = db.query(PedidoCompra).filter(
+        PedidoCompra.empresa_id == usuario.empresa_id
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"removidos": removidos}
 
 
 @router.delete("/compras/{pedido_id}")

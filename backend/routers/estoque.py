@@ -79,6 +79,15 @@ def atualizar(item_id: int, body: ItemEstoqueBody, db: Session = Depends(get_db)
     return item_estoque_dict(item)
 
 
+@router.delete("/limpar-tudo")
+def limpar_tudo(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    removidos = db.query(ItemEstoque).filter(
+        ItemEstoque.empresa_id == usuario.empresa_id
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"removidos": removidos}
+
+
 @router.delete("/{item_id}")
 def remover(item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
     item = db.query(ItemEstoque).filter(ItemEstoque.id == item_id, ItemEstoque.empresa_id == usuario.empresa_id).first()
