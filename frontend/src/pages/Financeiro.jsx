@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { TrendingUp, TrendingDown } from 'lucide-react'
+import { TrendingUp, TrendingDown, Trash2, AlertTriangle } from 'lucide-react'
 import FluxoCaixaChart from '../components/charts/FluxoCaixaChart'
 import { TabelaSkeleton } from '../components/ui/skeleton'
+import toast from 'react-hot-toast'
 
 const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 
@@ -45,8 +46,24 @@ function agruparFluxoSemanal(titulosReceber, titulosPagar) {
     }))
 }
 
-function TabelaTitulos({ titulos, tipo }) {
+function TabelaTitulos({ titulos, tipo, onDelete }) {
   const hoje = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  const [removendo, setRemovendo] = useState(null)
+
+  const handleDelete = async (t) => {
+    if (!window.confirm(`Remover o título "${t.titulo}"?`)) return
+    setRemovendo(t.id)
+    try {
+      await api.delete(`/financeiro/titulos/${t.id}`)
+      toast.success('Título removido')
+      onDelete()
+    } catch {
+      toast.error('Erro ao remover título')
+    } finally {
+      setRemovendo(null)
+    }
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -59,6 +76,7 @@ function TabelaTitulos({ titulos, tipo }) {
             <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Vencimento</th>
             <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Saldo</th>
             <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Situação</th>
+            <th className="py-2 px-3" />
           </tr>
         </thead>
         <tbody>
@@ -80,6 +98,16 @@ function TabelaTitulos({ titulos, tipo }) {
                     {vencido ? 'Vencido' : 'A vencer'}
                   </span>
                 </td>
+                <td className="py-2 px-3 text-center">
+                  <button
+                    onClick={() => handleDelete(t)}
+                    disabled={removendo === t.id}
+                    className="p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                    title="Remover título"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </td>
               </tr>
             )
           })}
@@ -94,8 +122,9 @@ export default function Financeiro() {
   const [receber, setReceber] = useState(null)
   const [pagar, setPagar] = useState(null)
   const [carregando, setCarregando] = useState(false)
+  const [limpando, setLimpando] = useState(false)
 
-  useEffect(() => {
+  const carregar = () => {
     setCarregando(true)
     Promise.all([
       api.get('/financeiro/contas-receber').catch(() => ({ data: DEMO_RECEBER })),
@@ -104,7 +133,23 @@ export default function Financeiro() {
       setReceber(r.data)
       setPagar(p.data)
     }).finally(() => setCarregando(false))
-  }, [])
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const handleLimparFC = async () => {
+    if (!window.confirm('Remover TODOS os títulos importados via Fluxo de Caixa (tipo FC)? Esta ação não pode ser desfeita.')) return
+    setLimpando(true)
+    try {
+      const res = await api.delete('/financeiro/titulos/limpar-fc')
+      toast.success(`${res.data.removidos} título(s) removido(s)`)
+      carregar()
+    } catch {
+      toast.error('Erro ao limpar títulos FC')
+    } finally {
+      setLimpando(false)
+    }
+  }
 
   const saldo = (receber?.total || 0) - (pagar?.total || 0)
 
@@ -185,12 +230,25 @@ export default function Financeiro() {
           </div>
         )}
 
+        {(aba === 'receber' || aba === 'pagar') && (
+          <div className="flex justify-end mb-3">
+            <button
+              onClick={handleLimparFC}
+              disabled={limpando}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+            >
+              <AlertTriangle size={13} />
+              {limpando ? 'Removendo...' : 'Limpar importação FC'}
+            </button>
+          </div>
+        )}
+
         {aba === 'receber' && (carregando
           ? <table className="w-full text-sm"><tbody><TabelaSkeleton linhas={6} colunas={5} /></tbody></table>
-          : receber && <TabelaTitulos titulos={receber.titulos} tipo="receber" />)}
+          : receber && <TabelaTitulos titulos={receber.titulos} tipo="receber" onDelete={carregar} />)}
         {aba === 'pagar' && (carregando
           ? <table className="w-full text-sm"><tbody><TabelaSkeleton linhas={6} colunas={5} /></tbody></table>
-          : pagar && <TabelaTitulos titulos={pagar.titulos} tipo="pagar" />)}
+          : pagar && <TabelaTitulos titulos={pagar.titulos} tipo="pagar" onDelete={carregar} />)}
       </div>
     </div>
   )

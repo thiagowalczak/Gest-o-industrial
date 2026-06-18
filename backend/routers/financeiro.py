@@ -163,6 +163,16 @@ def atualizar_titulo(titulo_id: int, body: TituloBody, db: Session = Depends(get
     return titulo_dict(titulo)
 
 
+@router.delete("/titulos/limpar-fc")
+def limpar_fluxo_caixa(db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    removidos = db.query(TituloFinanceiro).filter(
+        TituloFinanceiro.empresa_id == usuario.empresa_id,
+        TituloFinanceiro.tipo_doc == "FC",
+    ).delete(synchronize_session=False)
+    db.commit()
+    return {"removidos": removidos}
+
+
 @router.delete("/titulos/{titulo_id}")
 def remover_titulo(titulo_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
     titulo = db.query(TituloFinanceiro).filter(TituloFinanceiro.id == titulo_id, TituloFinanceiro.empresa_id == usuario.empresa_id).first()
