@@ -6,7 +6,7 @@ import api from '../services/api'
 import {
   LayoutDashboard, TrendingUp, Package, Factory,
   ShoppingCart, Users, Menu, X, LogOut, Bell,
-  ChevronRight, ChevronsLeft, ChevronsRight, Sun, Moon
+  ChevronRight, ChevronsLeft, ChevronsRight, Sun, Moon, Brain
 } from 'lucide-react'
 
 // Painel central (Dashboard): restrito ao Financeiro e à Administração.
@@ -21,6 +21,7 @@ const NAV = [
   { href: '/producao',   label: 'Produção',     icon: Factory,         setores: SETORES_OPERACIONAIS },
   { href: '/compras',    label: 'Compras',      icon: ShoppingCart,    setores: SETORES_OPERACIONAIS },
   { href: '/admin',      label: 'Administração',icon: Users,           setores: ['admin'] },
+  { href: '/analise',    label: 'Análise IA',   icon: Brain,           setores: ['admin', 'financeiro', 'diretoria'] },
 ]
 
 export default function Layout({ children }) {

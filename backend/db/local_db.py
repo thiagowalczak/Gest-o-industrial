@@ -168,6 +168,15 @@ class OrdemProducao(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
+# ── ANÁLISE IA ─────────────────────────────────────────────────────────────────
+class AnaliseIA(Base):
+    __tablename__ = "analises_ia"
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    resultado = Column(Text, nullable=False)  # JSON string
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
 def criar_tabelas():
     Base.metadata.create_all(bind=engine)
 

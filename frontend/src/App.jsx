@@ -9,6 +9,7 @@ import Estoque from './pages/Estoque'
 import Producao from './pages/Producao'
 import Compras from './pages/Compras'
 import Admin from './pages/Admin'
+import AnaliseIA from './pages/AnaliseIA'
 
 // Painel central (Dashboard) é restrito ao Financeiro e à Administração.
 function Privado({ children, apenasAdmin, apenasPainelCentral }) {
@@ -33,6 +34,7 @@ export default function App() {
             <Route path="/producao" element={<Privado><Producao /></Privado>} />
             <Route path="/compras" element={<Privado><Compras /></Privado>} />
             <Route path="/admin" element={<Privado apenasAdmin><Admin /></Privado>} />
+            <Route path="/analise" element={<Privado><AnaliseIA /></Privado>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
