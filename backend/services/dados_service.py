@@ -181,7 +181,10 @@ def resumo_dashboard(db: Session, empresa_id: int) -> dict:
     pedidos = listar_compras(db, empresa_id)
     receber = listar_titulos(db, empresa_id, "receber", 30)
     pagar = listar_titulos(db, empresa_id, "pagar", 30)
-    producao = listar_producao(db, empresa_id)
+    producao_abertas = listar_producao(db, empresa_id, somente_abertas=True)
+    # Inclui encerradas para calcular eficiência corretamente (exclui apenas canceladas)
+    producao_todas = listar_producao(db, empresa_id, somente_abertas=False)
+    producao_ativas = [o for o in producao_todas if (o.situacao or "").strip().upper() != "C"]
 
     total_receber = sum(t.saldo or 0 for t in receber)
     total_pagar = sum(t.saldo or 0 for t in pagar)
@@ -203,9 +206,9 @@ def resumo_dashboard(db: Session, empresa_id: int) -> dict:
             "valor_total_pedidos": sum(p.valor_total or 0 for p in pedidos),
         },
         "producao": {
-            "ordens_abertas": len(producao),
-            "quantidade_prevista": sum(o.quantidade_prevista or 0 for o in producao),
-            "quantidade_produzida": sum(o.quantidade_produzida or 0 for o in producao),
+            "ordens_abertas": len(producao_abertas),
+            "quantidade_prevista": sum(o.quantidade_prevista or 0 for o in producao_ativas),
+            "quantidade_produzida": sum(o.quantidade_produzida or 0 for o in producao_ativas),
         },
     }
 

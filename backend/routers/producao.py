@@ -102,18 +102,21 @@ def ordens(todas: bool = False, usuario: Usuario = Depends(get_usuario_atual), d
 
 @router.get("/resumo")
 def resumo(usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
-    ordens = listar_producao(db, usuario.empresa_id)
+    todas = listar_producao(db, usuario.empresa_id, somente_abertas=False)
+    # Exclui canceladas do cálculo de eficiência
+    ativas = [o for o in todas if (o.situacao or "").strip().upper() != "C"]
+
     por_situacao = {}
-    for o in ordens:
+    for o in todas:
         sit = SITUACOES.get((o.situacao or "").strip(), "Outro")
         por_situacao[sit] = por_situacao.get(sit, 0) + 1
 
-    total_previsto = sum(o.quantidade_prevista or 0 for o in ordens)
-    total_produzido = sum(o.quantidade_produzida or 0 for o in ordens)
+    total_previsto = sum(o.quantidade_prevista or 0 for o in ativas)
+    total_produzido = sum(o.quantidade_produzida or 0 for o in ativas)
 
     return {
         "por_situacao": por_situacao,
-        "total_ordens": len(ordens),
+        "total_ordens": len(todas),
         "total_previsto": total_previsto,
         "total_produzido": total_produzido,
         "eficiencia": round((total_produzido / total_previsto * 100) if total_previsto > 0 else 0, 1),
@@ -137,6 +140,9 @@ def atualizar_situacao(ordem_id: int, body: SituacaoBody, db: Session = Depends(
     if not ordem:
         raise HTTPException(404, "Ordem não encontrada")
     ordem.situacao = body.situacao
+    # Ao encerrar, garante que quantidade_produzida reflita o previsto se ainda não foi preenchida
+    if body.situacao == "E" and (not ordem.quantidade_produzida or ordem.quantidade_produzida == 0):
+        ordem.quantidade_produzida = ordem.quantidade_prevista or 0
     db.commit()
     return ordem_producao_dict(ordem)
 
