@@ -139,10 +139,14 @@ def atualizar_situacao(ordem_id: int, body: SituacaoBody, db: Session = Depends(
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
     if not ordem:
         raise HTTPException(404, "Ordem não encontrada")
+    situacao_anterior = (ordem.situacao or "").strip().upper()
     ordem.situacao = body.situacao
-    # Ao encerrar, garante que quantidade_produzida reflita o previsto se ainda não foi preenchida
-    if body.situacao == "E" and (not ordem.quantidade_produzida or ordem.quantidade_produzida == 0):
+    if body.situacao == "E":
+        # Encerrada → sempre 100% produzido
         ordem.quantidade_produzida = ordem.quantidade_prevista or 0
+    elif situacao_anterior == "E":
+        # Saindo de Encerrada → reseta produzido para refletir estado real
+        ordem.quantidade_produzida = 0
     db.commit()
     return ordem_producao_dict(ordem)
 

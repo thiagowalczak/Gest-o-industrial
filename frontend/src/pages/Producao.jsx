@@ -114,7 +114,10 @@ export default function Producao() {
     // Atualização otimista: progresso e status mudam imediatamente na tela
     setOrdens(prev => prev.map(o => {
       if (o.id !== ordemId) return o
-      const novoProduzido = novaSituacao === 'E' ? (o.quantidade_prevista || 0) : (o.quantidade_produzida || 0)
+      let novoProduzido
+      if (novaSituacao === 'E') novoProduzido = o.quantidade_prevista || 0       // encerrada → 100%
+      else if (o.situacao === 'E') novoProduzido = 0                              // saindo de encerrada → reseta
+      else novoProduzido = o.quantidade_produzida || 0                            // demais → mantém atual
       return {
         ...o,
         situacao: novaSituacao,
