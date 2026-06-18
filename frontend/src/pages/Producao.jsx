@@ -39,6 +39,20 @@ const ORDEM_VAZIA = {
 const dataParaInput = (v) => v && v.length === 8 ? `${v.slice(0,4)}-${v.slice(4,6)}-${v.slice(6,8)}` : ''
 const inputParaData = (v) => v ? v.replace(/-/g, '') : ''
 
+const calcularProgresso = (situacao, prevista, produzida) => {
+  if (situacao === 'E') return 100
+  if (situacao === 'C') return 0
+  return prevista > 0 ? Math.min(100, Math.round((produzida / prevista) * 100)) : 0
+}
+
+const COR_BARRA = {
+  E: 'bg-green-500',
+  C: 'bg-gray-400',
+  P: 'bg-orange-500',
+  L: 'bg-blue-500',
+  A: 'bg-yellow-500',
+}
+
 export default function Producao() {
   const [ordens, setOrdens] = useState([])
   const [resumo, setResumo] = useState(null)
@@ -97,11 +111,23 @@ export default function Producao() {
 
   const mudarSituacao = async (ordemId, novaSituacao) => {
     setAlterandoSituacao(ordemId)
+    // Atualização otimista: progresso e status mudam imediatamente na tela
+    setOrdens(prev => prev.map(o => {
+      if (o.id !== ordemId) return o
+      const novoProduzido = novaSituacao === 'E' ? (o.quantidade_prevista || 0) : (o.quantidade_produzida || 0)
+      return {
+        ...o,
+        situacao: novaSituacao,
+        quantidade_produzida: novoProduzido,
+        percentual_concluido: calcularProgresso(novaSituacao, o.quantidade_prevista, novoProduzido),
+      }
+    }))
     try {
       const { data } = await api.patch(`/producao/ordens/${ordemId}/situacao`, { situacao: novaSituacao })
       setOrdens(prev => prev.map(o => o.id === ordemId ? data : o))
       api.get('/producao/resumo').then(r => setResumo(r.data)).catch(() => {})
     } catch {
+      carregar() // reverte em caso de erro
     } finally {
       setAlterandoSituacao(null)
     }
@@ -320,10 +346,18 @@ export default function Producao() {
                     </select>
                   </td>
                   <td className="py-2 px-3 w-28">
-                    <div className="bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
-                      <div className="bg-primary-500 h-1.5 rounded-full" style={{ width: `${o.percentual_concluido || 0}%` }} />
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{o.percentual_concluido || 0}%</p>
+                    {(() => {
+                      const pct = calcularProgresso(o.situacao, o.quantidade_prevista, o.quantidade_produzida)
+                      const cor = COR_BARRA[o.situacao] || 'bg-primary-500'
+                      return (
+                        <>
+                          <div className="bg-gray-100 dark:bg-gray-700 rounded-full h-2">
+                            <div className={`${cor} h-2 rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+                          </div>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{pct}%</p>
+                        </>
+                      )
+                    })()}
                   </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center justify-center gap-2">
