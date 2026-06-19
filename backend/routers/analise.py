@@ -138,7 +138,10 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
     try:
         resp = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
-        resp.raise_for_status()
+        if resp.status_code == 429:
+            raise HTTPException(429, "Limite de requisições da API atingido. Aguarde 1 minuto e tente novamente.")
+        if not resp.ok:
+            raise HTTPException(502, f"Erro na API do Gemini: {resp.status_code}")
         texto = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         # Remove possível bloco markdown ```json ... ```
         if texto.startswith("```"):
@@ -146,8 +149,10 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
             if texto.startswith("json"):
                 texto = texto[4:]
             texto = texto.strip()
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(502, f"Erro ao chamar a API do Gemini: {str(e)}")
+        raise HTTPException(502, "Erro ao chamar a API do Gemini. Tente novamente.")
 
     try:
         resultado = json.loads(texto)
