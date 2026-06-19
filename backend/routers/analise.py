@@ -144,7 +144,12 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
         if resp.status_code == 401 or resp.status_code == 403:
             raise HTTPException(401, "Chave da API inválida ou sem permissão. Verifique GEMINI_API_KEY no Render.")
         if resp.status_code == 429:
-            raise HTTPException(429, "Limite de requisições da API atingido. Aguarde 1 minuto e tente novamente.")
+            detalhe = ""
+            try:
+                detalhe = resp.json().get("error", {}).get("message", "")
+            except Exception:
+                pass
+            raise HTTPException(429, f"Limite de requisições da API atingido: {detalhe}")
         if not resp.ok:
             detalhe = ""
             try:
