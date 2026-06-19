@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-import anthropic
+import google.generativeai as genai
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,6 @@ from services.dados_service import (
     listar_estoque,
     listar_compras,
     listar_producao,
-    listar_titulos_todos,
     SITUACOES_PRODUCAO,
 )
 
@@ -130,20 +129,17 @@ def ultima_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = 
 
 @router.post("/gerar")
 def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(503, "ANTHROPIC_API_KEY não configurada no servidor")
+        raise HTTPException(503, "GEMINI_API_KEY não configurada no servidor")
 
     prompt = _montar_prompt(db, usuario.empresa_id)
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(prompt)
 
-    texto = message.content[0].text.strip()
+    texto = response.text.strip()
 
     try:
         resultado = json.loads(texto)
