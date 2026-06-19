@@ -135,16 +135,24 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
 
     prompt = _montar_prompt(db, usuario.empresa_id)
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-    response = model.generate_content(prompt)
-
-    texto = response.text.strip()
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        texto = response.text.strip()
+        # Remove possível bloco markdown ```json ... ```
+        if texto.startswith("```"):
+            texto = texto.split("```")[1]
+            if texto.startswith("json"):
+                texto = texto[4:]
+            texto = texto.strip()
+    except Exception as e:
+        raise HTTPException(502, f"Erro ao chamar a API do Gemini: {str(e)}")
 
     try:
         resultado = json.loads(texto)
     except json.JSONDecodeError:
-        raise HTTPException(500, "A IA retornou um formato inesperado. Tente novamente.")
+        raise HTTPException(500, f"A IA retornou formato inesperado: {texto[:200]}")
 
     nova = AnaliseIA(
         empresa_id=usuario.empresa_id,
