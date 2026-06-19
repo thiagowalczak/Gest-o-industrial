@@ -135,15 +135,24 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
 
     prompt = _montar_prompt(db, usuario.empresa_id)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     try:
         resp = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
+        if resp.status_code == 400:
+            detalhe = resp.json().get("error", {}).get("message", "Requisição inválida")
+            raise HTTPException(400, f"Erro na chave ou modelo: {detalhe}")
+        if resp.status_code == 401 or resp.status_code == 403:
+            raise HTTPException(401, "Chave da API inválida ou sem permissão. Verifique GEMINI_API_KEY no Render.")
         if resp.status_code == 429:
             raise HTTPException(429, "Limite de requisições da API atingido. Aguarde 1 minuto e tente novamente.")
         if not resp.ok:
-            raise HTTPException(502, f"Erro na API do Gemini: {resp.status_code}")
+            detalhe = ""
+            try:
+                detalhe = resp.json().get("error", {}).get("message", "")
+            except Exception:
+                pass
+            raise HTTPException(502, f"Erro na API do Gemini ({resp.status_code}): {detalhe}")
         texto = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        # Remove possível bloco markdown ```json ... ```
         if texto.startswith("```"):
             texto = texto.split("```")[1]
             if texto.startswith("json"):
@@ -152,7 +161,7 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(502, "Erro ao chamar a API do Gemini. Tente novamente.")
+        raise HTTPException(502, f"Erro ao chamar a API do Gemini: {str(e)}")
 
     try:
         resultado = json.loads(texto)
