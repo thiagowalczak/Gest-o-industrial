@@ -135,7 +135,7 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
 
     prompt = _montar_prompt(db, usuario.empresa_id)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
     try:
         resp = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
         if resp.status_code == 400:
