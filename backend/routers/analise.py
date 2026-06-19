@@ -3,7 +3,7 @@ import json
 import os
 from datetime import datetime
 
-import google.generativeai as genai
+import requests
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -135,11 +135,11 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
 
     prompt = _montar_prompt(db, usuario.empresa_id)
 
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        texto = response.text.strip()
+        resp = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=60)
+        resp.raise_for_status()
+        texto = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         # Remove possível bloco markdown ```json ... ```
         if texto.startswith("```"):
             texto = texto.split("```")[1]
