@@ -8,6 +8,7 @@ from db.local_db import get_db, Usuario, TituloFinanceiro, ImportacaoLog
 from routers.auth import get_usuario_atual
 from services.dados_service import listar_titulos, titulo_dict
 from services.excel_utils import ler_linhas, converter_data, is_fluxo_caixa, ler_fluxo_caixa
+from services.log_service import registrar_log
 
 router = APIRouter(prefix="/financeiro", tags=["Financeiro"])
 
@@ -144,6 +145,7 @@ def criar_titulo(body: TituloBody, db: Session = Depends(get_db), usuario: Usuar
         dados["saldo"] = dados["valor"]
     titulo = TituloFinanceiro(empresa_id=usuario.empresa_id, **dados)
     db.add(titulo)
+    registrar_log(db, usuario.empresa_id, usuario.id, f"Lançou título a {titulo.tipo}", "financeiro", f"{titulo.titulo} — R$ {titulo.valor:.2f}")
     db.commit()
     db.refresh(titulo)
     return titulo_dict(titulo)
@@ -159,6 +161,7 @@ def atualizar_titulo(titulo_id: int, body: TituloBody, db: Session = Depends(get
         dados["saldo"] = dados["valor"]
     for campo, valor in dados.items():
         setattr(titulo, campo, valor)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Atualizou título financeiro", "financeiro", f"{titulo.titulo} — R$ {titulo.valor:.2f}")
     db.commit()
     return titulo_dict(titulo)
 
@@ -169,6 +172,7 @@ def limpar_fluxo_caixa(db: Session = Depends(get_db), usuario: Usuario = Depends
         TituloFinanceiro.empresa_id == usuario.empresa_id,
         TituloFinanceiro.tipo_doc == "FC",
     ).delete(synchronize_session=False)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Removeu lançamentos de Fluxo de Caixa", "financeiro", f"{removidos} título(s) removido(s)")
     db.commit()
     return {"removidos": removidos}
 
@@ -178,6 +182,7 @@ def remover_titulo(titulo_id: int, db: Session = Depends(get_db), usuario: Usuar
     titulo = db.query(TituloFinanceiro).filter(TituloFinanceiro.id == titulo_id, TituloFinanceiro.empresa_id == usuario.empresa_id).first()
     if not titulo:
         raise HTTPException(404, "Título não encontrado")
+    registrar_log(db, usuario.empresa_id, usuario.id, "Removeu título financeiro", "financeiro", f"{titulo.titulo} — R$ {(titulo.valor or 0):.2f}")
     db.delete(titulo)
     db.commit()
     return {"mensagem": "Título removido"}

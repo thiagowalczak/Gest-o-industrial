@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import api from '../services/api'
 import Modal from '../components/Modal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, FileDown, Download, Building2, Save, PlusCircle, History, Trash2, PackageCheck } from 'lucide-react'
+import { Users, UserPlus, Pencil, UserX, UserCheck, Shield, RefreshCw, Upload, AlertCircle, FileSpreadsheet, FileDown, Download, Building2, Save, PlusCircle, History, Trash2, PackageCheck, ListChecks } from 'lucide-react'
 
 const SETORES = ['financeiro', 'compras', 'estoque', 'producao', 'admin', 'diretoria']
 const PLANOS = ['trial', 'basico', 'pro']
@@ -44,6 +44,8 @@ export default function Admin() {
   const [importacaoParaRemover, setImportacaoParaRemover] = useState(null)
   const [removendoImportacao, setRemovendoImportacao] = useState(false)
 
+  const [atividades, setAtividades] = useState([])
+
   const carregar = () => {
     api.get('/usuarios/').then(r => setUsuarios(r.data)).catch(() => setUsuarios(DEMO_USERS))
   }
@@ -59,7 +61,11 @@ export default function Admin() {
     api.get('/admin/importacoes').then(r => setImportacoes(r.data)).catch(() => setImportacoes([]))
   }
 
-  useEffect(() => { carregar(); carregarEmpresa(); carregarImportacoes() }, [])
+  const carregarAtividades = () => {
+    api.get('/admin/atividades').then(r => setAtividades(r.data)).catch(() => setAtividades([]))
+  }
+
+  useEffect(() => { carregar(); carregarEmpresa(); carregarImportacoes(); carregarAtividades() }, [])
 
   const abrirNovo = () => { setForm(vazio); setEditando(null); setErro(''); setModal(true) }
   const abrirEditar = (u) => {
@@ -220,7 +226,7 @@ export default function Admin() {
       <div className="card">
         {/* Abas */}
         <div className="flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-700 pb-3 flex-wrap">
-          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas'], ['exportar', 'Exportar Planilhas'], ['historico', `Histórico (${importacoes.length})`]].map(([id, label]) => (
+          {[['empresa', 'Empresa'], ['nova-empresa', 'Nova Empresa'], ['funcionarios', `Funcionários (${ativos.length})`], ['importar', 'Importar Planilhas'], ['exportar', 'Exportar Planilhas'], ['historico', `Histórico (${importacoes.length})`], ['atividades', 'Atividades']].map(([id, label]) => (
             <button key={id} onClick={() => setAba(id)} aria-pressed={aba === id}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                 aba === id ? 'bg-primary-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -648,6 +654,53 @@ export default function Admin() {
                             <Trash2 size={14} />
                           </button>
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Aba Atividades (auditoria) */}
+        {aba === 'atividades' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary-100 dark:bg-primary-900/40 rounded-lg"><ListChecks size={20} className="text-primary-600" /></div>
+                <div>
+                  <p className="font-bold text-gray-900 dark:text-gray-100">Atividades do Painel</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Registro de criações, edições e exclusões feitas pela equipe</p>
+                </div>
+              </div>
+              <button onClick={carregarAtividades} className="btn-secondary text-sm flex items-center gap-1"><RefreshCw size={14} /> Atualizar</button>
+            </div>
+
+            {atividades.length === 0 ? (
+              <p className="text-center text-gray-500 dark:text-gray-400 py-10">Nenhuma atividade registrada ainda.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-700">
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Data / Hora</th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Usuário</th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ação</th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Módulo</th>
+                      <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Detalhes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {atividades.map(a => (
+                      <tr key={a.id} className="border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30">
+                        <td className="py-2 px-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {a.criado_em ? new Date(a.criado_em).toLocaleString('pt-BR') : '—'}
+                        </td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">{a.usuario_nome}</td>
+                        <td className="py-2 px-3 text-gray-700 dark:text-gray-300">{a.acao}</td>
+                        <td className="py-2 px-3 capitalize"><span className="badge-laranja">{a.modulo}</span></td>
+                        <td className="py-2 px-3 text-xs text-gray-500 dark:text-gray-400 max-w-[260px] truncate" title={a.detalhes || ''}>{a.detalhes || '—'}</td>
                       </tr>
                     ))}
                   </tbody>

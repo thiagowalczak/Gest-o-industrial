@@ -16,6 +16,7 @@ from services.dados_service import (
     listar_producao,
     SITUACOES_PRODUCAO,
 )
+from services.log_service import registrar_log
 
 router = APIRouter(prefix="/analise", tags=["Análise IA"])
 
@@ -178,6 +179,7 @@ def gerar_analise(usuario: Usuario = Depends(get_usuario_atual), db: Session = D
         resultado=json.dumps(resultado, ensure_ascii=False),
     )
     db.add(nova)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Gerou análise inteligente (IA)", "analise")
     db.commit()
     db.refresh(nova)
 

@@ -10,6 +10,7 @@ from services.dados_service import (
     listar_compras, pedido_compra_dict, aplicar_compra_no_estoque_e_financeiro,
 )
 from services.excel_utils import ler_linhas, converter_data
+from services.log_service import registrar_log
 
 router = APIRouter(prefix="/producao", tags=["Produção"])
 
@@ -127,6 +128,7 @@ def resumo(usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(
 def criar_ordem(body: OrdemProducaoBody, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
     ordem = OrdemProducao(empresa_id=usuario.empresa_id, **body.dict())
     db.add(ordem)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Criou ordem de produção", "producao", f"{ordem.numero} — {ordem.descricao}")
     db.commit()
     db.refresh(ordem)
     return ordem_producao_dict(ordem)
@@ -147,6 +149,7 @@ def atualizar_situacao(ordem_id: int, body: SituacaoBody, db: Session = Depends(
     elif situacao_anterior == "E":
         # Saindo de Encerrada → reseta produzido para refletir estado real
         ordem.quantidade_produzida = 0
+    registrar_log(db, usuario.empresa_id, usuario.id, f"Alterou situação da ordem para {SITUACOES.get(body.situacao, body.situacao)}", "producao", ordem.numero)
     db.commit()
     return ordem_producao_dict(ordem)
 
@@ -158,6 +161,7 @@ def atualizar_ordem(ordem_id: int, body: OrdemProducaoBody, db: Session = Depend
         raise HTTPException(404, "Ordem não encontrada")
     for campo, valor in body.dict().items():
         setattr(ordem, campo, valor)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Atualizou ordem de produção", "producao", f"{ordem.numero} — {ordem.descricao}")
     db.commit()
     return ordem_producao_dict(ordem)
 
@@ -167,6 +171,7 @@ def limpar_ordens(db: Session = Depends(get_db), usuario: Usuario = Depends(get_
     removidos = db.query(OrdemProducao).filter(
         OrdemProducao.empresa_id == usuario.empresa_id
     ).delete(synchronize_session=False)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Limpou todas as ordens de produção", "producao", f"{removidos} ordem(ns) removida(s)")
     db.commit()
     return {"removidos": removidos}
 
@@ -176,6 +181,7 @@ def remover_ordem(ordem_id: int, db: Session = Depends(get_db), usuario: Usuario
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
     if not ordem:
         raise HTTPException(404, "Ordem não encontrada")
+    registrar_log(db, usuario.empresa_id, usuario.id, "Removeu ordem de produção", "producao", f"{ordem.numero} — {ordem.descricao}")
     db.delete(ordem)
     db.commit()
     return {"mensagem": "Ordem removida"}
@@ -247,6 +253,7 @@ def criar_pedido_compra(body: PedidoCompraBody, db: Session = Depends(get_db), u
         dados["valor_total"] = round((dados.get("quantidade") or 0) * (dados.get("preco_unitario") or 0), 2)
     pedido = PedidoCompra(empresa_id=usuario.empresa_id, **dados)
     db.add(pedido)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Criou pedido de compra", "compras", f"{pedido.numero} — {pedido.descricao}")
     db.commit()
     db.refresh(pedido)
     return pedido_compra_dict(pedido)
@@ -262,6 +269,7 @@ def atualizar_pedido_compra(pedido_id: int, body: PedidoCompraBody, db: Session 
         dados["valor_total"] = round((dados.get("quantidade") or 0) * (dados.get("preco_unitario") or 0), 2)
     for campo, valor in dados.items():
         setattr(pedido, campo, valor)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Atualizou pedido de compra", "compras", f"{pedido.numero} — {pedido.descricao}")
     db.commit()
     return pedido_compra_dict(pedido)
 
@@ -271,6 +279,7 @@ def limpar_compras(db: Session = Depends(get_db), usuario: Usuario = Depends(get
     removidos = db.query(PedidoCompra).filter(
         PedidoCompra.empresa_id == usuario.empresa_id
     ).delete(synchronize_session=False)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Limpou todos os pedidos de compra", "compras", f"{removidos} pedido(s) removido(s)")
     db.commit()
     return {"removidos": removidos}
 
@@ -280,6 +289,7 @@ def remover_pedido_compra(pedido_id: int, db: Session = Depends(get_db), usuario
     pedido = db.query(PedidoCompra).filter(PedidoCompra.id == pedido_id, PedidoCompra.empresa_id == usuario.empresa_id).first()
     if not pedido:
         raise HTTPException(404, "Pedido não encontrado")
+    registrar_log(db, usuario.empresa_id, usuario.id, "Removeu pedido de compra", "compras", f"{pedido.numero} — {pedido.descricao}")
     db.delete(pedido)
     db.commit()
     return {"mensagem": "Pedido removido"}
@@ -293,6 +303,7 @@ def confirmar_entrega(pedido_id: int, db: Session = Depends(get_db), usuario: Us
     if (pedido.status or "") == "Pedido entregue":
         raise HTTPException(400, "Pedido já foi marcado como entregue")
     pedido.status = "Pedido entregue"
+    registrar_log(db, usuario.empresa_id, usuario.id, "Confirmou entrega do pedido de compra", "compras", f"{pedido.numero} — {pedido.descricao}")
     db.commit()
     aplicar_compra_no_estoque_e_financeiro(db, usuario.empresa_id, pedido)
     db.commit()

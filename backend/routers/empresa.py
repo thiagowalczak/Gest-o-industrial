@@ -6,6 +6,7 @@ from typing import Optional
 from db.local_db import get_db, Usuario, Empresa
 from routers.auth import get_usuario_atual, requer_admin
 from services.auth_service import hash_senha
+from services.log_service import registrar_log
 
 router = APIRouter(prefix="/empresa", tags=["Empresa"])
 
@@ -34,6 +35,7 @@ def _empresa_dict(db: Session, empresa: Empresa) -> dict:
         "cnpj": empresa.cnpj,
         "plano": empresa.plano,
         "ativo": empresa.ativo,
+        "onboarding_concluido": bool(empresa.onboarding_concluido),
         "criado_em": empresa.criado_em,
         "total_funcionarios": total_funcionarios,
     }
@@ -56,6 +58,7 @@ def atualizar_empresa(data: EmpresaUpdate, db: Session = Depends(get_db), admin:
     for campo, valor in data.dict(exclude_none=True).items():
         setattr(empresa, campo, valor)
 
+    registrar_log(db, admin.empresa_id, admin.id, "Atualizou dados da empresa", "empresa", empresa.nome)
     db.commit()
     return _empresa_dict(db, empresa)
 
@@ -81,6 +84,17 @@ def criar_empresa(data: EmpresaCreate, db: Session = Depends(get_db), admin: Usu
         admin=True,
     )
     db.add(novo_admin)
+    registrar_log(db, admin.empresa_id, admin.id, "Cadastrou nova empresa", "empresa", empresa.nome)
     db.commit()
 
+    return _empresa_dict(db, empresa)
+
+
+@router.post("/onboarding/concluir")
+def concluir_onboarding(db: Session = Depends(get_db), admin: Usuario = Depends(requer_admin)):
+    empresa = db.query(Empresa).filter(Empresa.id == admin.empresa_id).first()
+    if not empresa:
+        raise HTTPException(404, "Empresa não encontrada")
+    empresa.onboarding_concluido = True
+    db.commit()
     return _empresa_dict(db, empresa)

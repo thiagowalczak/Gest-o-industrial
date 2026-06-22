@@ -10,6 +10,7 @@ from services.dados_service import (
     verificar_estoque_minimo, buscar_alertas_pendentes, resolver_alerta,
 )
 from services.excel_utils import ler_linhas
+from services.log_service import registrar_log
 
 router = APIRouter(prefix="/estoque", tags=["Estoque"])
 
@@ -63,6 +64,7 @@ def criar(body: ItemEstoqueBody, db: Session = Depends(get_db), usuario: Usuario
         raise HTTPException(400, "Já existe um item com este código")
     item = ItemEstoque(empresa_id=usuario.empresa_id, **body.dict())
     db.add(item)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Cadastrou item de estoque", "estoque", f"{item.codigo} — {item.descricao}")
     db.commit()
     db.refresh(item)
     return item_estoque_dict(item)
@@ -75,6 +77,7 @@ def atualizar(item_id: int, body: ItemEstoqueBody, db: Session = Depends(get_db)
         raise HTTPException(404, "Item não encontrado")
     for campo, valor in body.dict().items():
         setattr(item, campo, valor)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Atualizou item de estoque", "estoque", f"{item.codigo} — {item.descricao}")
     db.commit()
     return item_estoque_dict(item)
 
@@ -84,6 +87,7 @@ def limpar_tudo(db: Session = Depends(get_db), usuario: Usuario = Depends(get_us
     removidos = db.query(ItemEstoque).filter(
         ItemEstoque.empresa_id == usuario.empresa_id
     ).delete(synchronize_session=False)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Limpou todo o estoque", "estoque", f"{removidos} item(ns) removido(s)")
     db.commit()
     return {"removidos": removidos}
 
@@ -93,6 +97,7 @@ def remover(item_id: int, db: Session = Depends(get_db), usuario: Usuario = Depe
     item = db.query(ItemEstoque).filter(ItemEstoque.id == item_id, ItemEstoque.empresa_id == usuario.empresa_id).first()
     if not item:
         raise HTTPException(404, "Item não encontrado")
+    registrar_log(db, usuario.empresa_id, usuario.id, "Removeu item de estoque", "estoque", f"{item.codigo} — {item.descricao}")
     db.delete(item)
     db.commit()
     return {"mensagem": "Item removido"}

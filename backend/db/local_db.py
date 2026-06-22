@@ -35,6 +35,7 @@ class Empresa(Base):
     cnpj = Column(String(20))
     plano = Column(String(20), default="trial")  # trial, pro, etc.
     ativo = Column(Boolean, default=True)
+    onboarding_concluido = Column(Boolean, default=False)
     criado_em = Column(DateTime, default=datetime.utcnow)
 
     usuarios = relationship("Usuario", back_populates="empresa")
@@ -189,6 +190,10 @@ def migrar_tabelas():
         ("titulos_financeiros", "importacao_id", "INTEGER"),
         ("pedidos_compra", "importacao_id", "INTEGER"),
         ("ordens_producao", "importacao_id", "INTEGER"),
+        # DEFAULT TRUE: empresas já existentes não devem ser forçadas a refazer
+        # o onboarding — só empresas criadas depois desta coluna existir
+        # nascem com onboarding_concluido=False (default do modelo SQLAlchemy).
+        ("empresas", "onboarding_concluido", "BOOLEAN DEFAULT TRUE"),
     ]
     with engine.connect() as conn:
         for tabela, coluna, tipo in novas_colunas:

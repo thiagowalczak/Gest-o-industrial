@@ -5,6 +5,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 from db.local_db import get_db, Usuario
 from services.auth_service import hash_senha
+from services.log_service import registrar_log
 from routers.auth import get_usuario_atual, requer_admin
 from datetime import datetime
 
@@ -79,6 +80,7 @@ def criar_usuario(data: UsuarioCreate, db: Session = Depends(get_db), admin: Usu
         admin=data.admin,
     )
     db.add(usuario)
+    registrar_log(db, admin.empresa_id, admin.id, "Cadastrou usuário", "usuarios", f"{usuario.nome} ({usuario.setor})")
     db.commit()
     db.refresh(usuario)
     return {"id": usuario.id, "mensagem": "Usuário criado com sucesso"}
@@ -94,6 +96,7 @@ def atualizar_usuario(usuario_id: int, data: UsuarioUpdate, db: Session = Depend
     for campo, valor in data.dict(exclude_none=True).items():
         setattr(usuario, campo, valor)
 
+    registrar_log(db, admin.empresa_id, admin.id, "Atualizou usuário", "usuarios", usuario.nome)
     db.commit()
     return {"mensagem": "Usuário atualizado"}
 
@@ -106,6 +109,7 @@ def desativar_usuario(usuario_id: int, db: Session = Depends(get_db), admin: Usu
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado")
     usuario.ativo = False
+    registrar_log(db, admin.empresa_id, admin.id, "Bloqueou acesso do usuário", "usuarios", usuario.nome)
     db.commit()
     return {"mensagem": "Usuário desativado"}
 
@@ -116,6 +120,7 @@ def reativar_usuario(usuario_id: int, db: Session = Depends(get_db), admin: Usua
     if not usuario:
         raise HTTPException(404, "Usuário não encontrado")
     usuario.ativo = True
+    registrar_log(db, admin.empresa_id, admin.id, "Reativou acesso do usuário", "usuarios", usuario.nome)
     db.commit()
     return {"mensagem": "Usuário reativado"}
 

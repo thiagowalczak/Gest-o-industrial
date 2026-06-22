@@ -1,10 +1,11 @@
 from __future__ import annotations
 import io
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from db.local_db import get_db, Usuario, ImportacaoLog, ItemEstoque, TituloFinanceiro, PedidoCompra, OrdemProducao
+from db.local_db import get_db, Usuario, ImportacaoLog, ItemEstoque, TituloFinanceiro, PedidoCompra, OrdemProducao, LogAtividade
 from routers.auth import get_usuario_atual
 from services.excel_utils import gerar_modelo_excel, gerar_csv, formatar_data_br
 from services.dados_service import listar_estoque, listar_producao, listar_compras, listar_titulos_todos
@@ -196,3 +197,27 @@ def remover_importacao(importacao_id: int, db: Session = Depends(get_db), usuari
     db.delete(log)
     db.commit()
     return {"removidos": removidos, "modulo": modulo}
+
+
+# ── REGISTRO DE ATIVIDADES (AUDITORIA) ────────────────────────────────────────
+@router.get("/atividades")
+def listar_atividades(modulo: Optional[str] = None, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    query = (
+        db.query(LogAtividade, Usuario.nome)
+        .outerjoin(Usuario, LogAtividade.usuario_id == Usuario.id)
+        .filter(LogAtividade.empresa_id == usuario.empresa_id)
+    )
+    if modulo:
+        query = query.filter(LogAtividade.modulo == modulo)
+    resultados = query.order_by(LogAtividade.criado_em.desc()).limit(300).all()
+    return [
+        {
+            "id": log.id,
+            "usuario_nome": nome or "Sistema",
+            "acao": log.acao,
+            "modulo": log.modulo,
+            "detalhes": log.detalhes,
+            "criado_em": log.criado_em.isoformat() if log.criado_em else None,
+        }
+        for log, nome in resultados
+    ]

@@ -10,15 +10,28 @@ import Producao from './pages/Producao'
 import Compras from './pages/Compras'
 import Admin from './pages/Admin'
 import AnaliseIA from './pages/AnaliseIA'
+import Onboarding from './pages/Onboarding'
 
 // Painel central (Dashboard) é restrito ao Financeiro e à Administração.
 function Privado({ children, apenasAdmin, apenasPainelCentral }) {
-  const { usuario, carregando } = useAuth()
+  const { usuario, empresa, carregando } = useAuth()
   if (carregando) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
   if (!usuario) return <Navigate to="/login" replace />
   if (apenasAdmin && !usuario.admin) return <Navigate to="/estoque" replace />
   if (apenasPainelCentral && !usuario.admin && usuario.setor !== 'financeiro') return <Navigate to="/estoque" replace />
+  // Administrador de empresa que ainda não importou os dados iniciais é guiado pelo assistente.
+  if (usuario.admin && empresa && empresa.onboarding_concluido === false) return <Navigate to="/onboarding" replace />
   return <Layout>{children}</Layout>
+}
+
+// Assistente de configuração inicial: só para administradores com onboarding pendente.
+function GuardaOnboarding({ children }) {
+  const { usuario, empresa, carregando } = useAuth()
+  if (carregando) return <div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary-500 border-t-transparent rounded-full animate-spin" /></div>
+  if (!usuario) return <Navigate to="/login" replace />
+  if (!usuario.admin) return <Navigate to="/estoque" replace />
+  if (empresa && empresa.onboarding_concluido !== false) return <Navigate to="/" replace />
+  return children
 }
 
 export default function App() {
@@ -28,6 +41,7 @@ export default function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/onboarding" element={<GuardaOnboarding><Onboarding /></GuardaOnboarding>} />
             <Route path="/" element={<Privado apenasPainelCentral><Dashboard /></Privado>} />
             <Route path="/financeiro" element={<Privado><Financeiro /></Privado>} />
             <Route path="/estoque" element={<Privado><Estoque /></Privado>} />
