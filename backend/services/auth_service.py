@@ -2,6 +2,7 @@ from __future__ import annotations
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from db.local_db import Usuario, Empresa
 from typing import Optional
@@ -38,6 +39,8 @@ def autenticar_usuario(db: Session, email: str, senha: str) -> Optional[Usuario]
     usuario = db.query(Usuario).filter(Usuario.email == email, Usuario.ativo == True).first()
     if not usuario or not verificar_senha(senha, usuario.senha_hash):
         return None
+    if usuario.empresa and not usuario.empresa.ativo:
+        raise HTTPException(status_code=403, detail="Empresa inativa. Contate o suporte.")
     usuario.ultimo_acesso = datetime.utcnow()
     db.commit()
     return usuario
@@ -62,6 +65,7 @@ def criar_admin_padrao(db: Session):
             setor="admin",
             cargo="Administrador do Sistema",
             admin=True,
+            super_admin=True,
         )
         db.add(admin)
         db.commit()

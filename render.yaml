@@ -20,6 +20,12 @@ services:
         value: Gestão Industrial
       - key: CORS_ORIGINS
         value: ""
+      - key: APP_URL
+        value: https://gestao-industrial-6nai.onrender.com
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
 
 databases:
   - name: gestao-industrial-db

@@ -6,7 +6,7 @@ import api from '../services/api'
 import {
   LayoutDashboard, TrendingUp, Package, Factory,
   ShoppingCart, Users, Menu, X, LogOut, Bell,
-  ChevronRight, ChevronsLeft, ChevronsRight, Sun, Moon, Brain
+  ChevronRight, ChevronsLeft, ChevronsRight, Sun, Moon, Brain, Building2
 } from 'lucide-react'
 
 // Painel central (Dashboard): restrito ao Financeiro e à Administração.
@@ -22,6 +22,7 @@ const NAV = [
   { href: '/compras',    label: 'Compras',      icon: ShoppingCart,    setores: SETORES_OPERACIONAIS },
   { href: '/admin',      label: 'Administração',icon: Users,           setores: ['admin'] },
   { href: '/analise',    label: 'Análise IA',   icon: Brain,           setores: ['admin', 'financeiro', 'diretoria'] },
+  { href: '/clientes',   label: 'Clientes',     icon: Building2,       superAdminOnly: true },
 ]
 
 export default function Layout({ children }) {
@@ -35,7 +36,7 @@ export default function Layout({ children }) {
   const { tema, alternarTema } = useTheme()
   const navigate = useNavigate()
 
-  const itensNav = NAV.filter(n => !n.setores || n.setores.includes(usuario?.setor))
+  const itensNav = NAV.filter(n => n.superAdminOnly ? !!usuario?.super_admin : (!n.setores || n.setores.includes(usuario?.setor)))
   const temAcessoEstoque = itensNav.some(n => n.href === '/estoque')
 
   useEffect(() => {

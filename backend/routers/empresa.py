@@ -4,9 +4,16 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from db.local_db import get_db, Usuario, Empresa
-from routers.auth import get_usuario_atual, requer_admin
+from routers.auth import get_usuario_atual, requer_admin, requer_super_admin
 from services.auth_service import hash_senha
 from services.log_service import registrar_log
+
+PLANOS_VALIDOS = ("trial", "basico", "pro")
+
+
+class EmpresaGerenciar(BaseModel):
+    plano: Optional[str] = None
+    ativo: Optional[bool] = None
 
 router = APIRouter(prefix="/empresa", tags=["Empresa"])
 
@@ -96,5 +103,33 @@ def concluir_onboarding(db: Session = Depends(get_db), admin: Usuario = Depends(
     if not empresa:
         raise HTTPException(404, "Empresa não encontrada")
     empresa.onboarding_concluido = True
+    db.commit()
+    return _empresa_dict(db, empresa)
+
+
+# ── GESTÃO DE CLIENTES (plataforma) ───────────────────────────────────────────
+# Como o autocadastro fica bloqueado (só o dono da plataforma cadastra empresas
+# clientes), a cobrança é manual — o controle de ativo/plano abaixo substitui
+# a necessidade de um gateway de pagamento automático.
+@router.get("/todas")
+def listar_todas_empresas(db: Session = Depends(get_db), super_admin: Usuario = Depends(requer_super_admin)):
+    empresas = db.query(Empresa).order_by(Empresa.criado_em.desc()).all()
+    return [_empresa_dict(db, e) for e in empresas]
+
+
+@router.put("/{empresa_id}/gerenciar")
+def gerenciar_empresa(empresa_id: int, data: EmpresaGerenciar, db: Session = Depends(get_db), super_admin: Usuario = Depends(requer_super_admin)):
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    if not empresa:
+        raise HTTPException(404, "Empresa não encontrada")
+    if data.plano is not None and data.plano not in PLANOS_VALIDOS:
+        raise HTTPException(400, f"Plano inválido. Opções: {PLANOS_VALIDOS}")
+
+    for campo, valor in data.dict(exclude_none=True).items():
+        setattr(empresa, campo, valor)
+
+    acao = f"Alterou plano/status da empresa {empresa.nome}"
+    detalhes = f"plano={empresa.plano}, ativo={empresa.ativo}"
+    registrar_log(db, super_admin.empresa_id, super_admin.id, acao, "empresa", detalhes)
     db.commit()
     return _empresa_dict(db, empresa)

@@ -53,6 +53,9 @@ class Usuario(Base):
     cargo = Column(String(100))
     ativo = Column(Boolean, default=True)
     admin = Column(Boolean, default=False)
+    super_admin = Column(Boolean, default=False)  # dono da plataforma — gerencia todas as empresas clientes
+    token_recuperacao = Column(String(100), nullable=True)
+    token_recuperacao_expira = Column(DateTime, nullable=True)
     criado_em = Column(DateTime, default=datetime.utcnow)
     ultimo_acesso = Column(DateTime)
 
@@ -194,6 +197,9 @@ def migrar_tabelas():
         # o onboarding — só empresas criadas depois desta coluna existir
         # nascem com onboarding_concluido=False (default do modelo SQLAlchemy).
         ("empresas", "onboarding_concluido", "BOOLEAN DEFAULT TRUE"),
+        ("usuarios", "super_admin", "BOOLEAN DEFAULT FALSE"),
+        ("usuarios", "token_recuperacao", "VARCHAR(100)"),
+        ("usuarios", "token_recuperacao_expira", "TIMESTAMP"),
     ]
     with engine.connect() as conn:
         for tabela, coluna, tipo in novas_colunas:
@@ -207,6 +213,16 @@ def migrar_tabelas():
                     conn.commit()
                 except Exception:
                     pass
+
+        # Conta dono da plataforma (criada por criar_admin_padrao) é o super admin —
+        # garante isso retroativamente em instalações que já existiam antes desta coluna.
+        try:
+            conn.execute(text(
+                "UPDATE usuarios SET super_admin = TRUE WHERE email = 'admin@empresa.com' AND (super_admin IS NULL OR super_admin = FALSE)"
+            ))
+            conn.commit()
+        except Exception:
+            pass
 
 
 def get_db():

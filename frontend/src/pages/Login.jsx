@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Factory, Eye, EyeOff } from 'lucide-react'
 
@@ -85,7 +85,12 @@ export default function Login() {
             </div>
 
             <div>
-              <label className="label">Senha</label>
+              <div className="flex items-center justify-between">
+                <label className="label">Senha</label>
+                <Link to="/esqueci-senha" className="text-xs font-medium text-primary-600 hover:text-primary-700">
+                  Esqueci minha senha
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   type={mostrarSenha ? 'text' : 'password'}
