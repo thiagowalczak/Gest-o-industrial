@@ -1,13 +1,14 @@
 from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
-from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra, ImportacaoLog
+from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra, ImportacaoLog, MaterialOrdemProducao, ItemEstoque
 from routers.auth import get_usuario_atual
 from services.dados_service import (
     listar_producao, ordem_producao_dict, SITUACOES_PRODUCAO,
     listar_compras, pedido_compra_dict, aplicar_compra_no_estoque_e_financeiro,
+    listar_materiais_ordem, material_ordem_dict, aplicar_consumo_materiais,
 )
 from services.excel_utils import ler_linhas, converter_data, validar_tamanho_arquivo
 from services.log_service import registrar_log
@@ -31,6 +32,11 @@ class OrdemProducaoBody(BaseModel):
 
 class SituacaoBody(BaseModel):
     situacao: str
+
+
+class MaterialOrdemBody(BaseModel):
+    item_codigo: str
+    quantidade_por_unidade: float = Field(gt=0)
 
 
 class PedidoCompraBody(BaseModel):
@@ -142,6 +148,7 @@ def atualizar_situacao(ordem_id: int, body: SituacaoBody, db: Session = Depends(
     if not ordem:
         raise HTTPException(404, "Ordem não encontrada")
     situacao_anterior = (ordem.situacao or "").strip().upper()
+    produzida_anterior = ordem.quantidade_produzida or 0
     ordem.situacao = body.situacao
     if body.situacao == "E":
         # Encerrada → sempre 100% produzido
@@ -149,6 +156,7 @@ def atualizar_situacao(ordem_id: int, body: SituacaoBody, db: Session = Depends(
     elif situacao_anterior == "E":
         # Saindo de Encerrada → reseta produzido para refletir estado real
         ordem.quantidade_produzida = 0
+    aplicar_consumo_materiais(db, usuario.empresa_id, ordem.id, produzida_anterior, ordem.quantidade_produzida or 0)
     registrar_log(db, usuario.empresa_id, usuario.id, f"Alterou situação da ordem para {SITUACOES.get(body.situacao, body.situacao)}", "producao", ordem.numero)
     db.commit()
     return ordem_producao_dict(ordem)
@@ -159,8 +167,10 @@ def atualizar_ordem(ordem_id: int, body: OrdemProducaoBody, db: Session = Depend
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
     if not ordem:
         raise HTTPException(404, "Ordem não encontrada")
+    produzida_anterior = ordem.quantidade_produzida or 0
     for campo, valor in body.dict().items():
         setattr(ordem, campo, valor)
+    aplicar_consumo_materiais(db, usuario.empresa_id, ordem.id, produzida_anterior, ordem.quantidade_produzida or 0)
     registrar_log(db, usuario.empresa_id, usuario.id, "Atualizou ordem de produção", "producao", f"{ordem.numero} — {ordem.descricao}")
     db.commit()
     return ordem_producao_dict(ordem)
@@ -223,6 +233,67 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
     log.total_registros = criados
     db.commit()
     return {"criados": criados, "total_linhas": len(linhas)}
+
+
+# ── MATERIAIS DA ORDEM (ficha técnica / BOM) ──────────────────────────────────
+@router.get("/ordens/{ordem_id}/materiais")
+def materiais_ordem(ordem_id: int, usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
+    ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
+    if not ordem:
+        raise HTTPException(404, "Ordem não encontrada")
+    return [material_ordem_dict(m) for m in listar_materiais_ordem(db, usuario.empresa_id, ordem_id)]
+
+
+@router.post("/ordens/{ordem_id}/materiais", status_code=201)
+def adicionar_material_ordem(ordem_id: int, body: MaterialOrdemBody, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
+    if not ordem:
+        raise HTTPException(404, "Ordem não encontrada")
+    item = db.query(ItemEstoque).filter(ItemEstoque.empresa_id == usuario.empresa_id, ItemEstoque.codigo == body.item_codigo).first()
+    if not item:
+        raise HTTPException(404, "Item não encontrado no estoque")
+
+    material = MaterialOrdemProducao(
+        empresa_id=usuario.empresa_id,
+        ordem_id=ordem_id,
+        item_codigo=item.codigo,
+        descricao=item.descricao,
+        quantidade_por_unidade=body.quantidade_por_unidade,
+    )
+    db.add(material)
+    registrar_log(db, usuario.empresa_id, usuario.id, "Adicionou material à ordem de produção", "producao", f"{ordem.numero}: {item.codigo} — {item.descricao}")
+    db.commit()
+    db.refresh(material)
+    return material_ordem_dict(material)
+
+
+@router.put("/ordens/{ordem_id}/materiais/{material_id}")
+def atualizar_material_ordem(ordem_id: int, material_id: int, body: MaterialOrdemBody, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    material = db.query(MaterialOrdemProducao).filter(
+        MaterialOrdemProducao.id == material_id,
+        MaterialOrdemProducao.ordem_id == ordem_id,
+        MaterialOrdemProducao.empresa_id == usuario.empresa_id,
+    ).first()
+    if not material:
+        raise HTTPException(404, "Material não encontrado nesta ordem")
+    material.quantidade_por_unidade = body.quantidade_por_unidade
+    db.commit()
+    return material_ordem_dict(material)
+
+
+@router.delete("/ordens/{ordem_id}/materiais/{material_id}")
+def remover_material_ordem(ordem_id: int, material_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    material = db.query(MaterialOrdemProducao).filter(
+        MaterialOrdemProducao.id == material_id,
+        MaterialOrdemProducao.ordem_id == ordem_id,
+        MaterialOrdemProducao.empresa_id == usuario.empresa_id,
+    ).first()
+    if not material:
+        raise HTTPException(404, "Material não encontrado nesta ordem")
+    registrar_log(db, usuario.empresa_id, usuario.id, "Removeu material da ordem de produção", "producao", f"{material.item_codigo} — {material.descricao}")
+    db.delete(material)
+    db.commit()
+    return {"mensagem": "Material removido"}
 
 
 # ── PEDIDOS DE COMPRA ─────────────────────────────────────────────────────────

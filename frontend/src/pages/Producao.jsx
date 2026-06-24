@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff, AlertTriangle } from 'lucide-react'
+import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff, AlertTriangle, Package, Info } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
 import { TabelaSkeleton } from '../components/ui/skeleton'
@@ -53,11 +53,125 @@ const COR_BARRA = {
   A: 'bg-yellow-500',
 }
 
+function AbaMateriais({ ordemId, quantidadePrevista }) {
+  const [materiais, setMateriais] = useState([])
+  const [itensEstoque, setItensEstoque] = useState([])
+  const [carregando, setCarregando] = useState(true)
+  const [novoCodigo, setNovoCodigo] = useState('')
+  const [novaQtd, setNovaQtd] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const carregar = () => {
+    Promise.all([
+      api.get(`/producao/ordens/${ordemId}/materiais`),
+      api.get('/estoque/'),
+    ]).then(([m, e]) => {
+      setMateriais(m.data || [])
+      setItensEstoque(e.data.itens || [])
+    }).finally(() => setCarregando(false))
+  }
+
+  useEffect(() => { carregar() }, [ordemId])
+
+  const adicionar = async (e) => {
+    e.preventDefault()
+    if (!novoCodigo || !novaQtd) return
+    setSalvando(true)
+    setErro('')
+    try {
+      await api.post(`/producao/ordens/${ordemId}/materiais`, {
+        item_codigo: novoCodigo,
+        quantidade_por_unidade: Number(novaQtd),
+      })
+      setNovoCodigo('')
+      setNovaQtd('')
+      carregar()
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao adicionar material.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const remover = async (materialId) => {
+    try {
+      await api.delete(`/producao/ordens/${ordemId}/materiais/${materialId}`)
+      carregar()
+    } catch {
+      setErro('Erro ao remover material.')
+    }
+  }
+
+  if (carregando) return <p className="text-sm text-gray-500 dark:text-gray-400 py-4">Carregando materiais...</p>
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg px-3 py-2">
+        <Info size={14} className="flex-shrink-0 mt-0.5" />
+        Defina quanto de cada item do estoque é consumido para produzir <strong>1 unidade</strong>. Conforme a quantidade produzida avançar, o estoque será abatido automaticamente.
+      </div>
+
+      {materiais.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-700">
+                <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Material</th>
+                <th className="text-right py-1.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Por unidade</th>
+                <th className="text-right py-1.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Necessário (previsto)</th>
+                <th className="py-1.5 px-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {materiais.map(m => (
+                <tr key={m.id} className="border-b border-gray-50 dark:border-gray-700/50">
+                  <td className="py-1.5 px-2 text-gray-700 dark:text-gray-300">{m.item_codigo} — {m.descricao}</td>
+                  <td className="py-1.5 px-2 text-right">{m.quantidade_por_unidade.toLocaleString('pt-BR')}</td>
+                  <td className="py-1.5 px-2 text-right text-gray-500 dark:text-gray-400">
+                    {(m.quantidade_por_unidade * (quantidadePrevista || 0)).toLocaleString('pt-BR')}
+                  </td>
+                  <td className="py-1.5 px-2 text-center">
+                    <button type="button" onClick={() => remover(m.id)} aria-label={`Remover material ${m.descricao}`} className="text-gray-400 hover:text-red-500">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex-1 min-w-[200px]">
+          <label className="label">Item do estoque</label>
+          <select className="input" value={novoCodigo} onChange={e => setNovoCodigo(e.target.value)}>
+            <option value="">Selecione...</option>
+            {itensEstoque.map(i => (
+              <option key={i.codigo} value={i.codigo}>{i.codigo} — {i.descricao} (disp.: {i.quantidade})</option>
+            ))}
+          </select>
+        </div>
+        <div className="w-32">
+          <label className="label">Qtd. por unidade</label>
+          <input type="number" min={0} step="any" className="input" value={novaQtd} onChange={e => setNovaQtd(e.target.value)} />
+        </div>
+        <button type="button" onClick={adicionar} disabled={salvando} className="btn-secondary text-sm flex items-center gap-1.5">
+          <Plus size={14} /> Adicionar
+        </button>
+      </div>
+      {erro && <p className="text-sm text-red-600">{erro}</p>}
+    </div>
+  )
+}
+
 export default function Producao() {
   const [ordens, setOrdens] = useState([])
   const [resumo, setResumo] = useState(null)
   const [mostrarTodas, setMostrarTodas] = useState(false)
   const [mostrarForm, setMostrarForm] = useState(false)
+  const [abaForm, setAbaForm] = useState('dados')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(ORDEM_VAZIA)
   const [salvando, setSalvando] = useState(false)
@@ -140,6 +254,7 @@ export default function Producao() {
     setEditando(null)
     setForm(ORDEM_VAZIA)
     setErro('')
+    setAbaForm('dados')
     setMostrarForm(true)
   }
 
@@ -151,6 +266,7 @@ export default function Producao() {
       data_inicio: dataParaInput(o.data_inicio), data_fim: dataParaInput(o.data_fim), situacao: o.situacao || 'A',
     })
     setErro('')
+    setAbaForm('dados')
     setMostrarForm(true)
   }
 
@@ -162,10 +278,13 @@ export default function Producao() {
     try {
       if (editando) {
         await api.put(`/producao/ordens/${editando.id}`, body)
+        setMostrarForm(false)
       } else {
-        await api.post('/producao/ordens', body)
+        const { data } = await api.post('/producao/ordens', body)
+        // Mantém o formulário aberto, já em modo edição, pra permitir cadastrar os materiais na hora
+        setEditando(data)
+        setAbaForm('materiais')
       }
-      setMostrarForm(false)
       carregar()
     } catch (err) {
       setErro(err.response?.data?.detail || 'Erro ao salvar ordem de produção.')
@@ -252,54 +371,77 @@ export default function Producao() {
         </div>
 
         {mostrarForm && (
-          <form onSubmit={salvar} className="bg-gray-50 border border-gray-100 dark:bg-gray-900/40 dark:border-gray-700 rounded-xl p-4 mb-4 space-y-4">
+          <div className="bg-gray-50 border border-gray-100 dark:bg-gray-900/40 dark:border-gray-700 rounded-xl p-4 mb-4 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{editando ? `Editar ordem ${editando.numero}/${editando.item}` : 'Nova ordem de produção'}</p>
               <button type="button" onClick={() => setMostrarForm(false)} aria-label="Fechar formulário" className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"><X size={16} /></button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="label">Número *</label>
-                <input className="input" value={form.numero} onChange={e => setForm(f => ({...f, numero: e.target.value}))} required />
-              </div>
-              <div>
-                <label className="label">Item</label>
-                <input className="input" value={form.item} onChange={e => setForm(f => ({...f, item: e.target.value}))} />
-              </div>
-              <div>
-                <label className="label">Código do Produto</label>
-                <input className="input" value={form.produto} onChange={e => setForm(f => ({...f, produto: e.target.value}))} />
-              </div>
-              <div className="md:col-span-3">
-                <label className="label">Descrição</label>
-                <input className="input" value={form.descricao} onChange={e => setForm(f => ({...f, descricao: e.target.value}))} />
-              </div>
-              <div>
-                <label className="label">Quantidade Prevista</label>
-                <input type="number" className="input" min={0} value={form.quantidade_prevista} onChange={e => setForm(f => ({...f, quantidade_prevista: Number(e.target.value)}))} />
-              </div>
-              <div>
-                <label className="label">Quantidade Produzida</label>
-                <input type="number" className="input" min={0} value={form.quantidade_produzida} onChange={e => setForm(f => ({...f, quantidade_produzida: Number(e.target.value)}))} />
-              </div>
-              <div>
-                <label className="label">Situação</label>
-                <select className="input" value={form.situacao} onChange={e => setForm(f => ({...f, situacao: e.target.value}))}>
-                  {SITUACOES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Data de Início</label>
-                <input type="date" className="input" value={form.data_inicio} onChange={e => setForm(f => ({...f, data_inicio: e.target.value}))} />
-              </div>
-              <div>
-                <label className="label">Data de Término</label>
-                <input type="date" className="input" value={form.data_fim} onChange={e => setForm(f => ({...f, data_fim: e.target.value}))} />
-              </div>
+
+            <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700 pb-2">
+              {[['dados', 'Dados da Ordem'], ['materiais', 'Materiais']].map(([id, label]) => (
+                <button key={id} type="button" onClick={() => setAbaForm(id)} aria-pressed={abaForm === id}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
+                    abaForm === id ? 'bg-primary-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}>
+                  {id === 'materiais' && <Package size={12} />}
+                  {label}
+                </button>
+              ))}
             </div>
-            {erro && <p className="text-sm text-red-600">{erro}</p>}
-            <button type="submit" className="btn-primary" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar'}</button>
-          </form>
+
+            {abaForm === 'dados' && (
+              <form onSubmit={salvar} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="label">Número *</label>
+                    <input className="input" value={form.numero} onChange={e => setForm(f => ({...f, numero: e.target.value}))} required />
+                  </div>
+                  <div>
+                    <label className="label">Item</label>
+                    <input className="input" value={form.item} onChange={e => setForm(f => ({...f, item: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="label">Código do Produto</label>
+                    <input className="input" value={form.produto} onChange={e => setForm(f => ({...f, produto: e.target.value}))} />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label className="label">Descrição</label>
+                    <input className="input" value={form.descricao} onChange={e => setForm(f => ({...f, descricao: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="label">Quantidade Prevista</label>
+                    <input type="number" className="input" min={0} value={form.quantidade_prevista} onChange={e => setForm(f => ({...f, quantidade_prevista: Number(e.target.value)}))} />
+                  </div>
+                  <div>
+                    <label className="label">Quantidade Produzida</label>
+                    <input type="number" className="input" min={0} value={form.quantidade_produzida} onChange={e => setForm(f => ({...f, quantidade_produzida: Number(e.target.value)}))} />
+                  </div>
+                  <div>
+                    <label className="label">Situação</label>
+                    <select className="input" value={form.situacao} onChange={e => setForm(f => ({...f, situacao: e.target.value}))}>
+                      {SITUACOES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Data de Início</label>
+                    <input type="date" className="input" value={form.data_inicio} onChange={e => setForm(f => ({...f, data_inicio: e.target.value}))} />
+                  </div>
+                  <div>
+                    <label className="label">Data de Término</label>
+                    <input type="date" className="input" value={form.data_fim} onChange={e => setForm(f => ({...f, data_fim: e.target.value}))} />
+                  </div>
+                </div>
+                {erro && <p className="text-sm text-red-600">{erro}</p>}
+                <button type="submit" className="btn-primary" disabled={salvando}>{salvando ? 'Salvando...' : 'Salvar'}</button>
+              </form>
+            )}
+
+            {abaForm === 'materiais' && (
+              editando
+                ? <AbaMateriais ordemId={editando.id} quantidadePrevista={form.quantidade_prevista} />
+                : <p className="text-sm text-gray-500 dark:text-gray-400 py-4">Salve os dados da ordem primeiro para poder adicionar materiais.</p>
+            )}
+          </div>
         )}
 
         <div className="flex justify-end mb-3">

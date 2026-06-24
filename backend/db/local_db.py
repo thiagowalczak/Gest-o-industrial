@@ -172,6 +172,18 @@ class OrdemProducao(Base):
     criado_em = Column(DateTime, default=datetime.utcnow)
 
 
+# ── MATERIAIS DA ORDEM DE PRODUÇÃO (ficha técnica / BOM) ──────────────────────
+class MaterialOrdemProducao(Base):
+    __tablename__ = "materiais_ordem_producao"
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    ordem_id = Column(Integer, ForeignKey("ordens_producao.id"), nullable=False, index=True)
+    item_codigo = Column(String(30), nullable=False)
+    descricao = Column(String(200))
+    quantidade_por_unidade = Column(Float, default=0)
+    criado_em = Column(DateTime, default=datetime.utcnow)
+
+
 # ── ANÁLISE IA ─────────────────────────────────────────────────────────────────
 class AnaliseIA(Base):
     __tablename__ = "analises_ia"

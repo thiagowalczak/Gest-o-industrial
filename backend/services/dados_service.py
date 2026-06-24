@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import List
 from sqlalchemy.orm import Session
 
-from db.local_db import ItemEstoque, PedidoCompra, TituloFinanceiro, OrdemProducao, AlertaEstoque
+from db.local_db import ItemEstoque, PedidoCompra, TituloFinanceiro, OrdemProducao, AlertaEstoque, MaterialOrdemProducao
 
 SITUACOES_PRODUCAO = {
     "A": "Aguardando",
@@ -173,6 +173,45 @@ def listar_producao(db: Session, empresa_id: int, somente_abertas: bool = True) 
     if somente_abertas:
         ordens = [o for o in ordens if (o.situacao or "").strip().upper() not in ("E", "C")]
     return ordens
+
+
+# ── MATERIAIS DA ORDEM DE PRODUÇÃO (ficha técnica / BOM) ──────────────────────
+def material_ordem_dict(m: MaterialOrdemProducao) -> dict:
+    return {
+        "id": m.id,
+        "ordem_id": m.ordem_id,
+        "item_codigo": m.item_codigo,
+        "descricao": m.descricao,
+        "quantidade_por_unidade": m.quantidade_por_unidade or 0,
+    }
+
+
+def listar_materiais_ordem(db: Session, empresa_id: int, ordem_id: int) -> List[MaterialOrdemProducao]:
+    return (
+        db.query(MaterialOrdemProducao)
+        .filter(MaterialOrdemProducao.empresa_id == empresa_id, MaterialOrdemProducao.ordem_id == ordem_id)
+        .order_by(MaterialOrdemProducao.id)
+        .all()
+    )
+
+
+def aplicar_consumo_materiais(db: Session, empresa_id: int, ordem_id: int, produzida_anterior: float, produzida_nova: float) -> None:
+    """
+    Abate (ou credita de volta) o estoque dos materiais cadastrados na ficha
+    técnica da ordem, proporcionalmente à variação de quantidade_produzida.
+    Chamada sempre que quantidade_produzida de uma ordem muda de valor.
+    """
+    delta = (produzida_nova or 0) - (produzida_anterior or 0)
+    if delta == 0:
+        return
+
+    materiais = listar_materiais_ordem(db, empresa_id, ordem_id)
+    for material in materiais:
+        item = db.query(ItemEstoque).filter(
+            ItemEstoque.empresa_id == empresa_id, ItemEstoque.codigo == material.item_codigo
+        ).first()
+        if item:
+            item.quantidade = (item.quantidade or 0) - delta * (material.quantidade_por_unidade or 0)
 
 
 # ── DASHBOARD ──────────────────────────────────────────────────────────────────
