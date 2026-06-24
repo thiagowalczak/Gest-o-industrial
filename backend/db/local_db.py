@@ -169,7 +169,19 @@ class OrdemProducao(Base):
     data_fim = Column(String(8))
     situacao = Column(String(2), default="A")  # A,L,P,E,C
     importacao_id = Column(Integer, nullable=True)
+    entregue = Column(Boolean, default=False)  # entrega ao cliente (venda) já confirmada
     criado_em = Column(DateTime, default=datetime.utcnow)
+
+
+# ── PREÇOS DE VENDA (tabela de preços dos produtos produzidos) ───────────────
+class PrecoVenda(Base):
+    __tablename__ = "precos_venda"
+    id = Column(Integer, primary_key=True, index=True)
+    empresa_id = Column(Integer, ForeignKey("empresas.id"), nullable=False, index=True)
+    produto_codigo = Column(String(30), nullable=False)
+    descricao = Column(String(200))
+    valor_venda = Column(Float, default=0)
+    atualizado_em = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 # ── MATERIAIS DA ORDEM DE PRODUÇÃO (ficha técnica / BOM) ──────────────────────
@@ -212,6 +224,7 @@ def migrar_tabelas():
         ("usuarios", "super_admin", "BOOLEAN DEFAULT FALSE"),
         ("usuarios", "token_recuperacao", "VARCHAR(100)"),
         ("usuarios", "token_recuperacao_expira", "TIMESTAMP"),
+        ("ordens_producao", "entregue", "BOOLEAN DEFAULT FALSE"),
     ]
     with engine.connect() as conn:
         for tabela, coluna, tipo in novas_colunas:

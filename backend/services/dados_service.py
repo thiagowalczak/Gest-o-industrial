@@ -9,9 +9,10 @@ importados via planilha Excel (ver routers/dados.py).
 from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import List
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from db.local_db import ItemEstoque, PedidoCompra, TituloFinanceiro, OrdemProducao, AlertaEstoque, MaterialOrdemProducao
+from db.local_db import ItemEstoque, PedidoCompra, TituloFinanceiro, OrdemProducao, AlertaEstoque, MaterialOrdemProducao, PrecoVenda
 
 SITUACOES_PRODUCAO = {
     "A": "Aguardando",
@@ -106,6 +107,49 @@ def aplicar_compra_no_estoque_e_financeiro(db: Session, empresa_id: int, pedido:
     ))
 
 
+# ── PREÇOS DE VENDA ────────────────────────────────────────────────────────────
+def preco_venda_dict(p: PrecoVenda) -> dict:
+    return {
+        "id": p.id,
+        "produto_codigo": p.produto_codigo,
+        "descricao": p.descricao,
+        "valor_venda": p.valor_venda or 0,
+    }
+
+
+def listar_precos_venda(db: Session, empresa_id: int) -> List[PrecoVenda]:
+    return db.query(PrecoVenda).filter(PrecoVenda.empresa_id == empresa_id).order_by(PrecoVenda.produto_codigo).all()
+
+
+def aplicar_entrega_producao_no_financeiro(db: Session, empresa_id: int, ordem: OrdemProducao) -> None:
+    """
+    Confirma a entrega (venda) de uma ordem de produção: usa a tabela de
+    preços de venda para calcular o valor e lança um título a receber.
+    """
+    if (ordem.quantidade_produzida or 0) <= 0:
+        raise HTTPException(400, "Não é possível confirmar entrega: nenhuma quantidade produzida ainda.")
+
+    preco = db.query(PrecoVenda).filter(
+        PrecoVenda.empresa_id == empresa_id, PrecoVenda.produto_codigo == (ordem.produto or "")
+    ).first()
+    if not preco or not preco.valor_venda:
+        raise HTTPException(400, "Configure o valor de venda deste produto na aba \"Preços de Venda\" antes de confirmar a entrega.")
+
+    valor_total = round((ordem.quantidade_produzida or 0) * preco.valor_venda, 2)
+    hoje = datetime.utcnow().strftime("%Y%m%d")
+    db.add(TituloFinanceiro(
+        empresa_id=empresa_id,
+        tipo="receber",
+        titulo=ordem.numero,
+        contraparte_nome=ordem.descricao or ordem.produto,
+        emissao=hoje,
+        vencimento=ordem.data_fim or hoje,
+        valor=valor_total,
+        saldo=valor_total,
+        tipo_doc="NF",
+    ))
+
+
 # ── FINANCEIRO ─────────────────────────────────────────────────────────────────
 def titulo_dict(t: TituloFinanceiro) -> dict:
     return {
@@ -165,6 +209,7 @@ def ordem_producao_dict(o: OrdemProducao) -> dict:
         "situacao": o.situacao,
         "situacao_descricao": SITUACOES_PRODUCAO.get((o.situacao or "").strip(), o.situacao),
         "percentual_concluido": round((produzida / prevista * 100) if prevista > 0 else 0, 1),
+        "entregue": bool(o.entregue),
     }
 
 

@@ -3,12 +3,13 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 from typing import Optional
-from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra, ImportacaoLog, MaterialOrdemProducao, ItemEstoque
+from db.local_db import get_db, Usuario, OrdemProducao, PedidoCompra, ImportacaoLog, MaterialOrdemProducao, ItemEstoque, PrecoVenda
 from routers.auth import get_usuario_atual
 from services.dados_service import (
     listar_producao, ordem_producao_dict, SITUACOES_PRODUCAO,
     listar_compras, pedido_compra_dict, aplicar_compra_no_estoque_e_financeiro,
     listar_materiais_ordem, material_ordem_dict, aplicar_consumo_materiais, calcular_consumo_materiais,
+    listar_precos_venda, preco_venda_dict, aplicar_entrega_producao_no_financeiro,
 )
 from services.excel_utils import ler_linhas, converter_data, validar_tamanho_arquivo
 from services.log_service import registrar_log
@@ -37,6 +38,12 @@ class SituacaoBody(BaseModel):
 class MaterialOrdemBody(BaseModel):
     item_codigo: str
     quantidade_por_unidade: float = Field(gt=0)
+
+
+class PrecoVendaBody(BaseModel):
+    produto_codigo: str
+    descricao: Optional[str] = None
+    valor_venda: float = Field(gt=0)
 
 
 class PedidoCompraBody(BaseModel):
@@ -233,6 +240,56 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
     log.total_registros = criados
     db.commit()
     return {"criados": criados, "total_linhas": len(linhas)}
+
+
+@router.post("/ordens/{ordem_id}/entregar")
+def confirmar_entrega_producao(ordem_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()
+    if not ordem:
+        raise HTTPException(404, "Ordem não encontrada")
+    if ordem.entregue:
+        raise HTTPException(400, "Ordem já foi marcada como entregue")
+    aplicar_entrega_producao_no_financeiro(db, usuario.empresa_id, ordem)
+    ordem.entregue = True
+    registrar_log(db, usuario.empresa_id, usuario.id, "Confirmou entrega de produção (venda)", "producao", f"{ordem.numero} — {ordem.descricao}")
+    db.commit()
+    return ordem_producao_dict(ordem)
+
+
+# ── PREÇOS DE VENDA ────────────────────────────────────────────────────────────
+@router.get("/precos-venda")
+def precos_venda(usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
+    return [preco_venda_dict(p) for p in listar_precos_venda(db, usuario.empresa_id)]
+
+
+@router.post("/precos-venda", status_code=201)
+def configurar_preco_venda(body: PrecoVendaBody, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    preco = db.query(PrecoVenda).filter(
+        PrecoVenda.empresa_id == usuario.empresa_id, PrecoVenda.produto_codigo == body.produto_codigo
+    ).first()
+    if preco:
+        preco.valor_venda = body.valor_venda
+        if body.descricao:
+            preco.descricao = body.descricao
+        acao = "Atualizou preço de venda"
+    else:
+        preco = PrecoVenda(empresa_id=usuario.empresa_id, produto_codigo=body.produto_codigo, descricao=body.descricao, valor_venda=body.valor_venda)
+        db.add(preco)
+        acao = "Configurou preço de venda"
+    registrar_log(db, usuario.empresa_id, usuario.id, acao, "producao", f"{body.produto_codigo} — R$ {body.valor_venda:.2f}")
+    db.commit()
+    db.refresh(preco)
+    return preco_venda_dict(preco)
+
+
+@router.delete("/precos-venda/{preco_id}")
+def remover_preco_venda(preco_id: int, db: Session = Depends(get_db), usuario: Usuario = Depends(get_usuario_atual)):
+    preco = db.query(PrecoVenda).filter(PrecoVenda.id == preco_id, PrecoVenda.empresa_id == usuario.empresa_id).first()
+    if not preco:
+        raise HTTPException(404, "Preço não encontrado")
+    db.delete(preco)
+    db.commit()
+    return {"mensagem": "Preço removido"}
 
 
 # ── MATERIAIS DA ORDEM (ficha técnica / BOM) ──────────────────────────────────

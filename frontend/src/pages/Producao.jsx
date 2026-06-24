@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff, AlertTriangle, Package, Info } from 'lucide-react'
+import { Factory, BarChart2, PieChart, Plus, Trash2, Edit2, X, Eye, EyeOff, AlertTriangle, Package, Info, PackageCheck, DollarSign } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
 import { TabelaSkeleton } from '../components/ui/skeleton'
@@ -51,6 +51,106 @@ const COR_BARRA = {
   P: 'bg-orange-500',
   L: 'bg-blue-500',
   A: 'bg-yellow-500',
+}
+
+const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
+
+function AbaPrecosVenda() {
+  const [precos, setPrecos] = useState([])
+  const [carregando, setCarregando] = useState(true)
+  const [form, setForm] = useState({ produto_codigo: '', descricao: '', valor_venda: '' })
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+
+  const carregar = () => {
+    api.get('/producao/precos-venda').then(r => setPrecos(r.data || [])).catch(() => setPrecos([])).finally(() => setCarregando(false))
+  }
+
+  useEffect(() => { carregar() }, [])
+
+  const salvar = async (e) => {
+    e.preventDefault()
+    if (!form.produto_codigo || !form.valor_venda) return
+    setSalvando(true)
+    setErro('')
+    try {
+      await api.post('/producao/precos-venda', { ...form, valor_venda: Number(form.valor_venda) })
+      setForm({ produto_codigo: '', descricao: '', valor_venda: '' })
+      carregar()
+    } catch (err) {
+      setErro(err.response?.data?.detail || 'Erro ao salvar preço de venda.')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const remover = async (id) => {
+    if (!window.confirm('Remover este preço de venda?')) return
+    try {
+      await api.delete(`/producao/precos-venda/${id}`)
+      carregar()
+    } catch {}
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Defina o valor de venda de cada produto. Esse valor é usado para calcular o título a receber quando uma ordem é marcada como entregue.
+      </p>
+
+      <form onSubmit={salvar} className="flex flex-wrap items-end gap-2 bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700 rounded-xl p-3">
+        <div className="w-40">
+          <label className="label">Código do Produto</label>
+          <input className="input" value={form.produto_codigo} onChange={e => setForm(f => ({...f, produto_codigo: e.target.value}))} required />
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <label className="label">Descrição</label>
+          <input className="input" value={form.descricao} onChange={e => setForm(f => ({...f, descricao: e.target.value}))} />
+        </div>
+        <div className="w-36">
+          <label className="label">Valor de Venda</label>
+          <input type="number" step="0.01" min={0} className="input" value={form.valor_venda} onChange={e => setForm(f => ({...f, valor_venda: e.target.value}))} required />
+        </div>
+        <button type="submit" disabled={salvando} className="btn-primary text-sm flex items-center gap-1.5">
+          <Plus size={14} /> Salvar
+        </button>
+      </form>
+      {erro && <p className="text-sm text-red-600">{erro}</p>}
+
+      {carregando ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400 py-4">Carregando...</p>
+      ) : precos.length === 0 ? (
+        <p className="text-center text-gray-500 dark:text-gray-400 py-8">Nenhum preço de venda configurado ainda.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 dark:border-gray-700">
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Código</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Descrição</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Valor de Venda</th>
+                <th className="py-2 px-3" />
+              </tr>
+            </thead>
+            <tbody>
+              {precos.map(p => (
+                <tr key={p.id} className="border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30">
+                  <td className="py-2 px-3 font-mono text-xs">{p.produto_codigo}</td>
+                  <td className="py-2 px-3 text-gray-700 dark:text-gray-300">{p.descricao || '—'}</td>
+                  <td className="py-2 px-3 text-right font-semibold">{fmt(p.valor_venda)}</td>
+                  <td className="py-2 px-3 text-center">
+                    <button onClick={() => remover(p.id)} aria-label={`Remover preço de ${p.produto_codigo}`} className="text-gray-400 hover:text-red-500">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function AbaMateriais({ ordemId, quantidadePrevista }) {
@@ -181,6 +281,9 @@ export default function Producao() {
   const [alterandoSituacao, setAlterandoSituacao] = useState(null)
   const [carregando, setCarregando] = useState(true)
   const [limpando, setLimpando] = useState(false)
+  const [abaPagina, setAbaPagina] = useState('ordens')
+  const [ordemParaEntregar, setOrdemParaEntregar] = useState(null)
+  const [entregando, setEntregando] = useState(false)
 
   const carregar = (todas = mostrarTodas) => {
     Promise.all([
@@ -306,6 +409,21 @@ export default function Producao() {
     }
   }
 
+  const confirmarEntregaProducao = async () => {
+    if (!ordemParaEntregar) return
+    setEntregando(true)
+    try {
+      await api.post(`/producao/ordens/${ordemParaEntregar.id}/entregar`)
+      toast.success('Entrega confirmada e título a receber lançado!')
+      carregar()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Erro ao confirmar entrega.')
+    } finally {
+      setEntregando(false)
+      setOrdemParaEntregar(null)
+    }
+  }
+
   return (
     <div className="space-y-5">
       {/* KPIs */}
@@ -350,26 +468,43 @@ export default function Producao() {
       <div className="card">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
           <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
-            <Factory size={18} className="text-primary-500" /> Ordens de Produção
+            <Factory size={18} className="text-primary-500" /> Produção
           </h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={toggleMostrarTodas}
-              title={mostrarTodas ? 'Ocultar encerradas e canceladas' : 'Mostrar todas as ordens'}
-              className={`text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer ${
-                mostrarTodas
-                  ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
-                  : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}>
-              {mostrarTodas ? <Eye size={14} /> : <EyeOff size={14} />}
-              {mostrarTodas ? 'Todas' : 'Em aberto'}
-            </button>
-            <button onClick={abrirNova} className="btn-primary text-sm flex items-center gap-2">
-              <Plus size={14} /> Nova Ordem
-            </button>
-          </div>
+          {abaPagina === 'ordens' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={toggleMostrarTodas}
+                title={mostrarTodas ? 'Ocultar encerradas e canceladas' : 'Mostrar todas as ordens'}
+                className={`text-sm flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 cursor-pointer ${
+                  mostrarTodas
+                    ? 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}>
+                {mostrarTodas ? <Eye size={14} /> : <EyeOff size={14} />}
+                {mostrarTodas ? 'Todas' : 'Em aberto'}
+              </button>
+              <button onClick={abrirNova} className="btn-primary text-sm flex items-center gap-2">
+                <Plus size={14} /> Nova Ordem
+              </button>
+            </div>
+          )}
         </div>
 
+        <div className="flex gap-1 mb-4 border-b border-gray-100 dark:border-gray-700 pb-3">
+          {[['ordens', 'Ordens'], ['precos', 'Preços de Venda']].map(([id, label]) => (
+            <button key={id} onClick={() => setAbaPagina(id)} aria-pressed={abaPagina === id}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+                abaPagina === id ? 'bg-primary-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}>
+              {id === 'precos' && <DollarSign size={13} />}
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {abaPagina === 'precos' && <AbaPrecosVenda />}
+
+        {abaPagina === 'ordens' && <>
         {mostrarForm && (
           <div className="bg-gray-50 border border-gray-100 dark:bg-gray-900/40 dark:border-gray-700 rounded-xl p-4 mb-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -466,11 +601,12 @@ export default function Producao() {
                 <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Prazo</th>
                 <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Status</th>
                 <th className="text-left py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Progresso</th>
+                <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Entrega</th>
                 <th className="text-center py-2 px-3 text-xs font-semibold text-gray-500 dark:text-gray-400">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {carregando && ordens.length === 0 && <TabelaSkeleton linhas={5} colunas={8} />}
+              {carregando && ordens.length === 0 && <TabelaSkeleton linhas={5} colunas={9} />}
               {ordens.map((o, i) => (
                 <tr key={i} className={`border-b border-gray-50 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/30 ${o.situacao === 'E' ? 'opacity-60' : ''} ${o.situacao === 'C' ? 'opacity-40' : ''}`}>
                   <td className="py-2 px-3 font-mono text-xs">{o.numero}/{o.item}</td>
@@ -504,8 +640,20 @@ export default function Producao() {
                       )
                     })()}
                   </td>
+                  <td className="py-2 px-3 text-center">
+                    {o.entregue ? <span className="badge-verde">Entregue</span> : <span className="badge-amarelo">Pendente</span>}
+                  </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center justify-center gap-2">
+                      {!o.entregue && (
+                        <button
+                          onClick={() => setOrdemParaEntregar(o)}
+                          aria-label={`Confirmar entrega da ordem ${o.numero}/${o.item}`}
+                          title="Confirmar entrega (lança contas a receber)"
+                          className="text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-400 rounded cursor-pointer">
+                          <PackageCheck size={14} />
+                        </button>
+                      )}
                       <button onClick={() => abrirEdicao(o)} aria-label={`Editar ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded cursor-pointer"><Edit2 size={14} /></button>
                       <button onClick={() => setOrdemParaRemover(o)} aria-label={`Remover ordem ${o.numero}/${o.item}`} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded cursor-pointer"><Trash2 size={14} /></button>
                     </div>
@@ -516,6 +664,7 @@ export default function Producao() {
           </table>
           {!carregando && ordens.length === 0 && <p className="text-center text-gray-500 dark:text-gray-400 py-8">Nenhuma ordem em aberto. Cadastre uma nova ordem ou importe pela Administração.</p>}
         </div>
+        </>}
       </div>
 
       <ConfirmDialog
@@ -526,6 +675,16 @@ export default function Producao() {
         descricao={`Tem certeza que deseja remover a ordem ${ordemParaRemover?.numero}/${ordemParaRemover?.item}? Esta ação não pode ser desfeita.`}
         textoConfirmar="Remover"
         carregando={removendo}
+      />
+
+      <ConfirmDialog
+        aberto={!!ordemParaEntregar}
+        onConfirmar={confirmarEntregaProducao}
+        onCancelar={() => setOrdemParaEntregar(null)}
+        titulo="Confirmar entrega de produção"
+        descricao={`Confirmar que a ordem ${ordemParaEntregar?.numero}/${ordemParaEntregar?.item} foi entregue ao cliente? Isso vai lançar automaticamente um título a receber com base no preço de venda configurado.`}
+        textoConfirmar="Confirmar entrega"
+        carregando={entregando}
       />
     </div>
   )
