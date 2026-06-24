@@ -8,7 +8,7 @@ from routers.auth import get_usuario_atual
 from services.dados_service import (
     listar_producao, ordem_producao_dict, SITUACOES_PRODUCAO,
     listar_compras, pedido_compra_dict, aplicar_compra_no_estoque_e_financeiro,
-    listar_materiais_ordem, material_ordem_dict, aplicar_consumo_materiais,
+    listar_materiais_ordem, material_ordem_dict, aplicar_consumo_materiais, calcular_consumo_materiais,
 )
 from services.excel_utils import ler_linhas, converter_data, validar_tamanho_arquivo
 from services.log_service import registrar_log
@@ -236,6 +236,11 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
 
 
 # ── MATERIAIS DA ORDEM (ficha técnica / BOM) ──────────────────────────────────
+@router.get("/consumo-materiais")
+def consumo_materiais(usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
+    return calcular_consumo_materiais(db, usuario.empresa_id)
+
+
 @router.get("/ordens/{ordem_id}/materiais")
 def materiais_ordem(ordem_id: int, usuario: Usuario = Depends(get_usuario_atual), db: Session = Depends(get_db)):
     ordem = db.query(OrdemProducao).filter(OrdemProducao.id == ordem_id, OrdemProducao.empresa_id == usuario.empresa_id).first()

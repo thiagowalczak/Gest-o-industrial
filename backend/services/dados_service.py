@@ -195,6 +195,34 @@ def listar_materiais_ordem(db: Session, empresa_id: int, ordem_id: int) -> List[
     )
 
 
+def calcular_consumo_materiais(db: Session, empresa_id: int) -> List[dict]:
+    """Soma, por item do estoque, quanto já foi consumido por todas as ordens de produção (quantidade_por_unidade x quantidade_produzida de cada ordem)."""
+    linhas = (
+        db.query(MaterialOrdemProducao, OrdemProducao.quantidade_produzida)
+        .join(OrdemProducao, MaterialOrdemProducao.ordem_id == OrdemProducao.id)
+        .filter(MaterialOrdemProducao.empresa_id == empresa_id, OrdemProducao.empresa_id == empresa_id)
+        .all()
+    )
+
+    agregado: dict[str, dict] = {}
+    for material, produzida in linhas:
+        consumido = (material.quantidade_por_unidade or 0) * (produzida or 0)
+        chave = material.item_codigo
+        if chave not in agregado:
+            agregado[chave] = {"item_codigo": chave, "descricao": material.descricao, "total_consumido": 0.0}
+        agregado[chave]["total_consumido"] += consumido
+
+    if agregado:
+        itens = db.query(ItemEstoque).filter(
+            ItemEstoque.empresa_id == empresa_id, ItemEstoque.codigo.in_(agregado.keys())
+        ).all()
+        estoque_por_codigo = {i.codigo: i.quantidade or 0 for i in itens}
+        for chave, dados in agregado.items():
+            dados["estoque_atual"] = estoque_por_codigo.get(chave, 0)
+
+    return sorted(agregado.values(), key=lambda d: -d["total_consumido"])
+
+
 def aplicar_consumo_materiais(db: Session, empresa_id: int, ordem_id: int, produzida_anterior: float, produzida_nova: float) -> None:
     """
     Abate (ou credita de volta) o estoque dos materiais cadastrados na ficha

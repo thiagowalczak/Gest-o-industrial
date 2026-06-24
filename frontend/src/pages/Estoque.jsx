@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { Package, AlertTriangle, Search, Settings, CheckCircle, Plus, Trash2, PieChart } from 'lucide-react'
+import { Package, AlertTriangle, Search, Settings, CheckCircle, Plus, Trash2, PieChart, DollarSign, Factory } from 'lucide-react'
 import ConfirmDialog from '../components/ConfirmDialog'
 import DistribuicaoPizza from '../components/charts/DistribuicaoPizza'
 import { TabelaSkeleton } from '../components/ui/skeleton'
@@ -25,15 +25,18 @@ export default function Estoque() {
   const [removendo, setRemovendo] = useState(false)
   const [carregando, setCarregando] = useState(true)
   const [limpando, setLimpando] = useState(false)
+  const [consumoProducao, setConsumoProducao] = useState([])
 
   const carregar = async () => {
     try {
-      const [estoqueRes, alertasRes] = await Promise.all([
+      const [estoqueRes, alertasRes, consumoRes] = await Promise.all([
         api.get('/estoque/').catch(() => ({ data: { itens: DEMO_ITENS } })),
         api.get('/estoque/alertas').catch(() => ({ data: DEMO_ALERTAS })),
+        api.get('/producao/consumo-materiais').catch(() => ({ data: [] })),
       ])
       setItens(estoqueRes.data.itens || [])
       setAlertas(alertasRes.data || [])
+      setConsumoProducao(consumoRes.data || [])
     } catch {
     } finally {
       setCarregando(false)
@@ -64,6 +67,12 @@ export default function Estoque() {
     { nome: 'Normal', valor: itens.filter(i => !i.alerta).length, cor: '#22c55e' },
     { nome: 'Crítico', valor: itens.filter(i => i.alerta).length, cor: '#ef4444' },
   ], [itens])
+
+  const valorTotalEstoque = useMemo(
+    () => itens.reduce((acc, i) => acc + (i.quantidade || 0) * (i.custo_medio || 0), 0),
+    [itens]
+  )
+  const fmt = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0)
 
   const salvarConfig = async (e) => {
     e.preventDefault()
@@ -120,11 +129,16 @@ export default function Estoque() {
   return (
     <div className="space-y-5">
       {/* Resumo */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="card text-center">
           <Package size={24} className="mx-auto text-blue-500 mb-2" />
           <p className="text-2xl font-bold text-blue-600">{itens.length}</p>
           <p className="text-xs text-gray-500 dark:text-gray-400">Total de Itens</p>
+        </div>
+        <div className="card text-center">
+          <DollarSign size={24} className="mx-auto text-primary-500 mb-2" />
+          <p className="text-lg sm:text-2xl font-bold text-primary-600">{fmt(valorTotalEstoque)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Valor Total em Estoque</p>
         </div>
         <div className="card text-center">
           <AlertTriangle size={24} className="mx-auto text-amber-500 mb-2" />
@@ -143,14 +157,47 @@ export default function Estoque() {
         </div>
       </div>
 
-      {itens.length > 0 && (
-        <div className="card">
-          <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-2">
-            <PieChart size={18} className="text-primary-500" /> Distribuição do Estoque
-          </h3>
-          <DistribuicaoPizza dados={distribuicaoEstoque} formatador={(v) => Number(v).toLocaleString('pt-BR')} />
-        </div>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {itens.length > 0 && (
+          <div className="card">
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-2">
+              <PieChart size={18} className="text-primary-500" /> Distribuição do Estoque
+            </h3>
+            <DistribuicaoPizza dados={distribuicaoEstoque} formatador={(v) => Number(v).toLocaleString('pt-BR')} />
+          </div>
+        )}
+
+        {consumoProducao.length > 0 && (
+          <div className="card">
+            <h3 className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-2">
+              <Factory size={18} className="text-primary-500" /> Consumo pela Produção
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Total já consumido pelas ordens de produção e o quanto resta em estoque agora.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 dark:border-gray-700">
+                    <th className="text-left py-1.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Material</th>
+                    <th className="text-right py-1.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Consumido</th>
+                    <th className="text-right py-1.5 px-2 text-xs font-semibold text-gray-500 dark:text-gray-400">Estoque atual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consumoProducao.slice(0, 10).map(c => (
+                    <tr key={c.item_codigo} className="border-b border-gray-50 dark:border-gray-700/50">
+                      <td className="py-1.5 px-2 text-gray-700 dark:text-gray-300 truncate max-w-[160px]">{c.item_codigo} — {c.descricao}</td>
+                      <td className="py-1.5 px-2 text-right text-primary-600 dark:text-primary-400 font-medium">{Number(c.total_consumido).toLocaleString('pt-BR')}</td>
+                      <td className={`py-1.5 px-2 text-right font-semibold ${c.estoque_atual <= 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                        {Number(c.estoque_atual).toLocaleString('pt-BR')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="card">
         {/* Abas */}
