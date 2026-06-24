@@ -9,7 +9,7 @@ from services.dados_service import (
     listar_estoque, item_estoque_dict,
     verificar_estoque_minimo, buscar_alertas_pendentes, resolver_alerta,
 )
-from services.excel_utils import ler_linhas
+from services.excel_utils import ler_linhas, validar_tamanho_arquivo
 from services.log_service import registrar_log
 
 router = APIRouter(prefix="/estoque", tags=["Estoque"])
@@ -149,6 +149,7 @@ async def importar_excel(file: UploadFile = File(...), db: Session = Depends(get
         raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
+    validar_tamanho_arquivo(conteudo)
     linhas = ler_linhas(conteudo, MAPA_COLUNAS, nome_arquivo=file.filename)
 
     log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="estoque", nome_arquivo=file.filename)

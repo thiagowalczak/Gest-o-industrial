@@ -9,7 +9,7 @@ from services.dados_service import (
     listar_producao, ordem_producao_dict, SITUACOES_PRODUCAO,
     listar_compras, pedido_compra_dict, aplicar_compra_no_estoque_e_financeiro,
 )
-from services.excel_utils import ler_linhas, converter_data
+from services.excel_utils import ler_linhas, converter_data, validar_tamanho_arquivo
 from services.log_service import registrar_log
 
 router = APIRouter(prefix="/producao", tags=["Produção"])
@@ -193,6 +193,7 @@ async def importar_ordens_excel(file: UploadFile = File(...), db: Session = Depe
         raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
+    validar_tamanho_arquivo(conteudo)
     linhas = ler_linhas(conteudo, MAPA_COLUNAS_PRODUCAO, nome_arquivo=file.filename)
 
     log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="producao", nome_arquivo=file.filename)
@@ -316,6 +317,7 @@ async def importar_compras_excel(file: UploadFile = File(...), db: Session = Dep
         raise HTTPException(400, "Envie um arquivo Excel (.xlsx) ou CSV (.csv)")
 
     conteudo = await file.read()
+    validar_tamanho_arquivo(conteudo)
     linhas = ler_linhas(conteudo, MAPA_COLUNAS_COMPRAS, nome_arquivo=file.filename)
 
     log = ImportacaoLog(empresa_id=usuario.empresa_id, modulo="compras", nome_arquivo=file.filename)

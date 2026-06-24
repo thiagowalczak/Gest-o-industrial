@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from db.local_db import get_db, Usuario, LogAtividade
 from services.auth_service import autenticar_usuario, criar_token, decodificar_token, hash_senha
 from services.email_service import enviar_email_recuperacao_senha
+from services.rate_limit import excedeu_limite, registrar_tentativa_falha, limpar_tentativas
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -75,9 +76,15 @@ def _resposta_usuario(usuario: Usuario) -> dict:
 
 @router.post("/login", response_model=TokenResponse)
 def login(form: OAuth2PasswordRequestForm = Depends(), request: Request = None, db: Session = Depends(get_db)):
+    ip = request.client.host if request and request.client else "desconhecido"
+    if excedeu_limite(ip):
+        raise HTTPException(status_code=429, detail="Muitas tentativas de login. Tente novamente em alguns minutos.")
+
     usuario = autenticar_usuario(db, form.username, form.password)
     if not usuario:
+        registrar_tentativa_falha(ip)
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+    limpar_tentativas(ip)
 
     token = criar_token({"sub": str(usuario.id), "empresa_id": usuario.empresa_id, "email": usuario.email, "setor": usuario.setor})
 

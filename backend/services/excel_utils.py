@@ -7,6 +7,15 @@ from datetime import datetime
 from typing import Optional
 
 import openpyxl
+from fastapi import HTTPException
+
+MAX_TAMANHO_ARQUIVO_MB = 5
+
+
+def validar_tamanho_arquivo(conteudo: bytes, max_mb: int = MAX_TAMANHO_ARQUIVO_MB) -> None:
+    tamanho_mb = len(conteudo) / (1024 * 1024)
+    if tamanho_mb > max_mb:
+        raise HTTPException(400, f"Arquivo muito grande ({tamanho_mb:.1f}MB). O limite é {max_mb}MB.")
 
 _MESES = {
     "JAN": 1, "FEV": 2, "MAR": 3, "ABR": 4, "MAI": 5, "JUN": 6,
